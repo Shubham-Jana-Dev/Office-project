@@ -1,9 +1,14 @@
 /**
  * Centralized API Client for ThreadCraft Luxe Backend (Flask REST API)
- * Communicates with Flask backend over /api proxy in development or production URL.
+ *
+ * In development  : Vite proxies `/api` → `http://127.0.0.1:5001` (vite.config.js)
+ * In production   : Set VITE_API_URL in your hosting provider's env vars
+ *                   e.g. https://your-backend.onrender.com/api
+ *
+ * Never hardcode passwords, hostnames, or credentials here.
  */
 
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const getHeaders = (customHeaders = {}) => {
   const token = localStorage.getItem('tc_auth_token');

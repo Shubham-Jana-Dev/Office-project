@@ -21,7 +21,48 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
-node_modules
-venv
+
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+venv/
+.venv/
+
+# ── Environment / Secrets — NEVER commit these ────────────────
+# Root-level
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Backend
+backend/.env
+backend/.env.local
+backend/.env.development
+backend/.env.production
+backend/.env.staging
+
+# Frontend
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.staging
+
+# ── Python artifacts ──────────────────────────────────────────
 **/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.so
+
+# ── Frontend build output ─────────────────────────────────────
+frontend/dist/
+frontend/build/
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
