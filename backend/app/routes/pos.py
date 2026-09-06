@@ -36,6 +36,7 @@ def checkout():
     tax = data.get('tax', 0.0)
     total = data.get('total', 0.0)
     payment_method = data.get('paymentMethod', 'Cash')
+    sale_type = data.get('saleType', 'finished_product')
 
     try:
         # 1. Create Sales Order
@@ -50,6 +51,7 @@ def checkout():
             tax=tax,
             total=total,
             payment_method=payment_method,
+            sale_type=sale_type,
             status='Completed',
             items_data=items,
         )

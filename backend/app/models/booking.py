@@ -19,6 +19,7 @@ class OrderBooking(db.Model):
     balance_due = db.Column(db.Numeric(10, 2), default=0.00)
     status = db.Column(db.String(50), default='In Production') # In Production, Ready for Trial, Trial Done, Delivered, Cancelled
     assigned_master = db.Column(db.String(150), nullable=True)
+    assigned_employees = db.Column(db.JSON, nullable=True)
     special_instructions = db.Column(db.Text, nullable=True)
     measurement_id = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -47,6 +48,7 @@ class OrderBooking(db.Model):
             'balanceDue': float(self.balance_due) if self.balance_due is not None else 0.0,
             'status': self.status,
             'assignedMaster': self.assigned_master,
+            'assignedEmployees': self.assigned_employees or [],
             'specialInstructions': self.special_instructions,
             'measurementId': self.measurement_id,
             'currentStage': current_stage,

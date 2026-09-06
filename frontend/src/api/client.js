@@ -124,6 +124,9 @@ export const employeesApi = {
   getAttendance: () => api.get('/employees/attendance'),
   logAttendance: (record) => api.post('/employees/attendance', record),
   updateAttendance: (attendanceId, updates) => api.patch(`/employees/attendance/${attendanceId}`, updates),
+  getWorkPayments: (status = 'READY_FOR_PAYMENT') => api.get(`/employees/work-payments?status=${encodeURIComponent(status)}`),
+  settleWorkPayment: (jobId, paymentMethod = 'Cash') => api.post(`/employees/work-payments/${jobId}/settle`, { paymentMethod }),
+  settleProductionBalance: (empId, paymentMethod = 'Cash') => api.post(`/employees/${empId}/production-payout`, { paymentMethod }),
 };
 
 export const customersApi = {
@@ -139,6 +142,7 @@ export const ledgerApi = {
   getStages: () => api.get('/ledger/stages'),
   createStage: (data) => api.post('/ledger/stages', data),
   updateStage: (id, updates) => api.patch(`/ledger/stages/${id}`, updates),
+  getProductionJobs: (status) => api.get(`/ledger/production-jobs${status ? `?status=${encodeURIComponent(status)}` : ''}`),
 };
 
 export const purchasesApi = {

@@ -30,6 +30,8 @@ def update_customer(customer_id):
     if 'gstin' in data: customer.gstin = data['gstin']
     if 'creditLimit' in data: customer.credit_limit = data['creditLimit']
     if 'balance' in data: customer.balance = data['balance']
+    if 'buyerType' in data: customer.buyer_type = data['buyerType']
+    if 'customerSegment' in data: customer.customer_segment = data['customerSegment']
 
     db.session.commit()
     return jsonify(customer.to_dict()), 200
@@ -56,6 +58,8 @@ def create_customer():
         gstin=data.get('gstin'),
         credit_limit=data.get('creditLimit', 0.0),
         balance=data.get('balance', 0.0),
+        buyer_type=data.get('buyerType', 'finished_product'),
+        customer_segment=data.get('customerSegment', 'retail'),
     )
     db.session.add(customer)
     db.session.commit()

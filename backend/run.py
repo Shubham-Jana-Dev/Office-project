@@ -7,10 +7,31 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from backend.app import create_app
+from backend.app.extensions import db
+from sqlalchemy import text
 
 app = create_app()
 
+
+def check_database_connection():
+    """Return False and print a friendly message when MySQL is unavailable."""
+    try:
+        with app.app_context():
+            with db.engine.connect() as connection:
+                connection.execute(text('SELECT 1'))
+        return True
+    except Exception as error:
+        print('\nUnable to connect to the MySQL database "garment_erp".', file=sys.stderr)
+        print('Please make sure MySQL is running and DATABASE_URL in backend/.env is correct.', file=sys.stderr)
+        print(f'Database error: {error}', file=sys.stderr)
+        print('The API was not started.\n', file=sys.stderr)
+        return False
+
+
 if __name__ == '__main__':
+    if not check_database_connection():
+        raise SystemExit(1)
+
     port = int(os.environ.get('PORT', 5001))
     print(f"🚀 ThreadCraft Luxe Flask REST API starting on http://127.0.0.1:{port}")
     app.run(host='0.0.0.0', port=port, debug=True)

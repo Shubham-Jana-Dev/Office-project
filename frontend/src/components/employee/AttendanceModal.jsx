@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
+import { SearchableSelect } from '../common/SearchableSelect';
+import { NewEmployeeModal } from './NewEmployeeModal';
 import { Clock, CheckCircle2 } from 'lucide-react';
 
 export const AttendanceModal = ({ isOpen, onClose }) => {
@@ -12,6 +14,8 @@ export const AttendanceModal = ({ isOpen, onClose }) => {
   const [status, setStatus] = useState('Present'); // Present, Absent, Half Day, Leave
   const [otHours, setOtHours] = useState('0.0');
   const [notes, setNotes] = useState('');
+  const [isNewEmployeeModalOpen, setIsNewEmployeeModalOpen] = useState(false);
+  const [newEmployeeName, setNewEmployeeName] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -39,18 +43,21 @@ export const AttendanceModal = ({ isOpen, onClose }) => {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div>
           <label className="form-label">Employee</label>
-          <select
-            className="form-select"
+          <SearchableSelect
             value={empId}
-            onChange={(e) => setEmpId(e.target.value)}
+            onChange={setEmpId}
+            options={employees.map((employee) => ({
+              value: employee.empId,
+              label: `${employee.name} (${employee.role})`,
+            }))}
+            placeholder="Search employee name..."
+            addNewLabel="Add new employee"
+            onAddNew={(name) => {
+              setNewEmployeeName(name);
+              setIsNewEmployeeModalOpen(true);
+            }}
             required
-          >
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.empId}>
-                {emp.name} ({emp.role})
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         <div>
@@ -117,6 +124,12 @@ export const AttendanceModal = ({ isOpen, onClose }) => {
           <Clock size={18} /> Record Attendance Punch
         </button>
       </form>
+      <NewEmployeeModal
+        isOpen={isNewEmployeeModalOpen}
+        onClose={() => setIsNewEmployeeModalOpen(false)}
+        initialName={newEmployeeName}
+        onEmployeeCreated={(employee) => setEmpId(employee.empId)}
+      />
     </Modal>
   );
 };

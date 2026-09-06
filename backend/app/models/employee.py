@@ -1,5 +1,14 @@
 from datetime import datetime
 from backend.app.extensions import db
+from sqlalchemy.orm import validates
+
+EMPLOYEE_ROLES = (
+    'Cutter',
+    'Master Tailor',
+    'Stitching',
+    'Washing',
+    'Finishing',
+)
 
 class Employee(db.Model):
     __tablename__ = 'employees'
@@ -29,6 +38,12 @@ class Employee(db.Model):
 
     # Relationship to master job cards
     jobs = db.relationship('MasterJobAssignment', backref='master', lazy=True)
+
+    @validates('role')
+    def validate_role(self, key, value):
+        if value not in EMPLOYEE_ROLES:
+            raise ValueError(f'Role must be one of: {", ".join(EMPLOYEE_ROLES)}')
+        return value
 
     def to_dict(self):
         return {

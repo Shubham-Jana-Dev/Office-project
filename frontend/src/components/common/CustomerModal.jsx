@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from './Modal';
 import { UserCheck, UserPlus, Crown, Phone, Mail, MapPin } from 'lucide-react';
 
-export const CustomerModal = ({ isOpen, onClose, onCustomerCreated }) => {
+export const CustomerModal = ({ isOpen, onClose, onCustomerCreated, initialName = '' }) => {
   const { addCustomer, customers } = useApp();
   const [formData, setFormData] = useState({
     customId: '',
@@ -16,9 +16,13 @@ export const CustomerModal = ({ isOpen, onClose, onCustomerCreated }) => {
     balanceReceivable: 0,
   });
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    if (isOpen && initialName) setFormData((previous) => ({ ...previous, name: initialName }));
+  }, [isOpen, initialName]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const createdCust = addCustomer(formData);
+    const createdCust = await addCustomer(formData);
     if (onCustomerCreated) {
       onCustomerCreated(createdCust);
     }

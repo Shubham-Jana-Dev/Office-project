@@ -683,6 +683,33 @@
 .profile-silhouette-box {
   min-height: 400px;
   padding: 16px;
+  overflow: visible;
+}
+
+.profile-silhouette-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.profile-silhouette-header .btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.profile-blueprint-canvas {
+  width: 180px;
+  height: 360px;
+  flex: 0 0 auto;
+  margin: 0 auto;
+}
+
+.profile-blueprint-canvas > svg {
+  display: block;
 }
 
 .profile-actions-bar {
@@ -1050,6 +1077,22 @@
   .profile-silhouette-box {
     min-height: 340px !important;
     padding: 12px !important;
+  }
+
+  .profile-silhouette-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-silhouette-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .profile-blueprint-canvas {
+    transform: scale(0.92);
+    transform-origin: top center;
+    margin-bottom: -28px;
   }
 
   .profile-actions-bar {

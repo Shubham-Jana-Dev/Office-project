@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Ruler,
@@ -14,14 +14,18 @@ import {
 import { formatDate } from '../../utils/formatters';
 import { exportTailorJobCardPDF } from '../../utils/pdfGenerator';
 import { CustomerProfileModal } from '../customer/CustomerProfileModal';
+import { CustomerModal } from '../common/CustomerModal';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const MeasurementView = () => {
-  const { customers, measurements, saveMeasurementProfile } = useApp();
+  const { customers, measurements, saveMeasurementProfile, measurementHubCustomerId, measurementHubField, setMeasurementHubCustomerId, setMeasurementHubField } = useApp();
 
   const [selectedCustId, setSelectedCustId] = useState(customers[0]?.id || '');
   const [garmentType, setGarmentType] = useState('Bespoke Suit & Shirt');
   const [activeMeasurementPoint, setActiveMeasurementPoint] = useState(null);
   const [is360ModalOpen, setIs360ModalOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
 
   const selectedCustomerObj = customers.find((c) => c.id === selectedCustId) || customers[0];
 
@@ -47,6 +51,21 @@ export const MeasurementView = () => {
   const [postureNotes, setPostureNotes] = useState(
     'Slightly sloping right shoulder; prefers 0.5" shirt cuff show beyond jacket sleeve.'
   );
+
+  useEffect(() => {
+    if (!measurementHubCustomerId) return;
+    setSelectedCustId(measurementHubCustomerId);
+    if (measurementHubField) setActiveMeasurementPoint(measurementHubField);
+    const existing = measurements.find((measurement) => measurement.customerId === measurementHubCustomerId);
+    if (existing) {
+      setGarmentType(existing.garmentType || existing.suitType || 'Bespoke Suit & Shirt');
+      setSpecs(existing.measurements || {});
+      setFitPreference(existing.fitPreference || 'Slim Tailored Fit');
+      setPostureNotes(existing.postureNotes || '');
+    }
+    setMeasurementHubCustomerId(null);
+    setMeasurementHubField(null);
+  }, [measurementHubCustomerId, measurementHubField, measurements, setMeasurementHubCustomerId, setMeasurementHubField]);
 
   // Load existing measurements when customer changes
   const handleCustomerChange = (custId) => {
@@ -199,17 +218,21 @@ export const MeasurementView = () => {
             <div className="form-grid-2">
               <div>
                 <label className="form-label">Client Name</label>
-                <select
-                  className="form-select"
+                <SearchableSelect
                   value={selectedCustId}
-                  onChange={(e) => handleCustomerChange(e.target.value)}
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.type} • {c.phone})
-                    </option>
-                  ))}
-                </select>
+                  onChange={handleCustomerChange}
+                  options={customers.map((customer) => ({
+                    value: customer.id,
+                    label: `${customer.name} (${customer.type} - ${customer.phone})`,
+                  }))}
+                  placeholder="Search client name or phone..."
+                  addNewLabel="Add new client"
+                  onAddNew={(name) => {
+                    setNewCustomerName(name);
+                    setIsCustomerModalOpen(true);
+                  }}
+                  required
+                />
               </div>
 
               <div>
@@ -352,6 +375,12 @@ export const MeasurementView = () => {
         isOpen={is360ModalOpen}
         onClose={() => setIs360ModalOpen(false)}
         customer={selectedCustomerObj}
+      />
+      <CustomerModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
+        initialName={newCustomerName}
+        onCustomerCreated={(customer) => setSelectedCustId(customer.id)}
       />
     </div>
   );

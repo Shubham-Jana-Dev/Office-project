@@ -126,11 +126,13 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
     ledgerEntries,
     updateBookingStatus,
     currency,
+    openMeasurementHub,
   } = useApp();
 
   const [activeProfileTab, setActiveProfileTab] = useState('sizing'); // 'sizing' | 'bills' | 'bookings' | 'ledger'
   const [selectedGarmentType, setSelectedGarmentType] = useState('Bespoke Suit & Shirt');
   const [activeMeasurementField, setActiveMeasurementField] = useState('chest');
+  const [isSizingBreakdownOpen, setIsSizingBreakdownOpen] = useState(false);
 
   // Sizing State
   const [sizingData, setSizingData] = useState({
@@ -652,20 +654,22 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
 
               {/* Interactive SVG Silhouette Guide Right */}
               <div className="silhouette-canvas-container profile-silhouette-box">
-                <div
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    color: 'var(--text-muted)',
-                    marginBottom: '8px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Silhouette Blueprint
+                <div className="profile-silhouette-header">
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Silhouette Blueprint
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsSizingBreakdownOpen((previous) => !previous)}
+                    aria-expanded={isSizingBreakdownOpen}
+                  >
+                    <Ruler size={14} /> {isSizingBreakdownOpen ? 'Summary' : 'View Full Sizing'}
+                  </button>
                 </div>
 
                 {/* SVG Silhouette with Interactive Measurement Pins */}
-                <div style={{ position: 'relative', width: '180px', height: '360px' }}>
+                <div className="profile-blueprint-canvas" style={{ position: 'relative' }}>
                   <svg viewBox="0 0 200 400" width="100%" height="100%" style={{ opacity: 0.85 }}>
                     {/* Head */}
                     <circle
@@ -780,7 +784,77 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                   >
                     Length {sizingData.trouserLength}"
                   </div>
+
+                  {[
+                    { key: 'collar', label: 'Collar', top: '42px', left: '50%' },
+                    { key: 'bicep', label: 'Bicep', top: '132px', left: '0' },
+                    { key: 'wristCuff', label: 'Cuff', top: '184px', left: '0' },
+                    { key: 'thigh', label: 'Thigh', top: '218px', left: '50%' },
+                    { key: 'bottomHem', label: 'Hem', top: '332px', left: '50%' },
+                  ].map((pin) => (
+                    <div
+                      key={pin.key}
+                      onClick={() => setActiveMeasurementField(pin.key)}
+                      style={{
+                        position: 'absolute',
+                        top: pin.top,
+                        left: pin.left,
+                        transform: pin.left === '50%' ? 'translateX(-50%)' : undefined,
+                        background: activeMeasurementField === pin.key ? 'var(--accent-gold)' : 'var(--primary)',
+                        color: '#000',
+                        padding: '2px 5px',
+                        borderRadius: '10px',
+                        fontSize: '0.6rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {pin.label} {sizingData[pin.key]}"
+                    </div>
+                  ))}
                 </div>
+
+                {isSizingBreakdownOpen && (
+                  <div style={{ width: '100%', marginTop: '14px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      Complete Upper & Body Specifications
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px' }}>
+                      {[
+                        ['collar', 'Collar / Neck'],
+                        ['chest', 'Chest / Bust'],
+                        ['waist', 'Stomach / Waist'],
+                        ['hip', 'Seat / Hip'],
+                        ['shoulder', 'Shoulder Width'],
+                        ['sleeveLength', 'Sleeve Length'],
+                        ['bicep', 'Bicep / Armhole'],
+                        ['wristCuff', 'Wrist Cuff'],
+                        ['shirtLength', 'Jacket/Shirt Length'],
+                        ['trouserWaist', 'Trouser Waist'],
+                        ['trouserLength', 'Outseam Length'],
+                        ['inseam', 'Inseam / Crotch'],
+                        ['thigh', 'Thigh Width'],
+                        ['bottomHem', 'Ankle / Bottom Hem'],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`btn btn-sm ${activeMeasurementField === key ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => {
+                            setActiveMeasurementField(key);
+                            openMeasurementHub(customer.id, key);
+                            onClose();
+                          }}
+                          style={{ minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', textAlign: 'left', fontSize: '0.68rem', padding: '6px 8px', overflow: 'hidden' }}
+                        >
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                          <strong className="font-mono" style={{ flexShrink: 0 }}>{sizingData[key]}&quot;</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div
                   style={{

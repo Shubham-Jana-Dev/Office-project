@@ -1,0 +1,16 @@
+export const COMMON_GARMENT_TYPES = [
+  'Bespoke 2-Piece Suit',
+  'Bespoke 3-Piece Suit',
+  'Tuxedo / Dinner Jacket',
+  'Blazer',
+  'Formal Dress Shirt',
+  'Casual Shirt',
+  'Trousers & Chinos',
+  'Waistcoat / Vest',
+  'Sherwani & Kurta',
+  'Lehenga / Bridal Wear',
+  'Evening Gown',
+  'Traditional Dress',
+  'Overcoat / Trench Coat',
+  'Uniform / Workwear',
+];

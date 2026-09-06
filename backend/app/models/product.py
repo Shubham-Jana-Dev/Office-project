@@ -15,6 +15,7 @@ class Product(db.Model):
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     mrp = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     stock = db.Column(db.Integer, nullable=False, default=0)
+    unit = db.Column(db.String(30), nullable=True, default='Piece')
     min_stock = db.Column(db.Integer, nullable=False, default=5)
     sizes = db.Column(db.JSON, nullable=True) # ['S', 'M', 'L']
     colors = db.Column(db.JSON, nullable=True) # ['Crisp White', 'Navy']
@@ -38,6 +39,7 @@ class Product(db.Model):
             'price': float(self.price) if self.price is not None else 0.0,
             'mrp': float(self.mrp) if self.mrp is not None else 0.0,
             'stock': self.stock,
+            'unit': self.unit or 'Piece',
             'minStock': self.min_stock,
             'sizes': self.sizes or [],
             'colors': self.colors or [],

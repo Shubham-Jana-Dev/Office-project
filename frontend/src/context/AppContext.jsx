@@ -58,6 +58,8 @@ export const AppProvider = ({ children }) => {
 
   const [attendance, setAttendance] = useState([]);
   const [assignedJobs, setAssignedJobs] = useState([]);
+  const [workPayments, setWorkPayments] = useState([]);
+  const [productionJobs, setProductionJobs] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -72,6 +74,14 @@ export const AppProvider = ({ children }) => {
   const [cartDiscount, setCartDiscount] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [measurementHubCustomerId, setMeasurementHubCustomerId] = useState(null);
+  const [measurementHubField, setMeasurementHubField] = useState(null);
+
+  const openMeasurementHub = (customerId, field = null) => {
+    setMeasurementHubCustomerId(customerId);
+    setMeasurementHubField(field);
+    setActiveTab('measurement');
+  };
 
   // Apply theme to root document
   useEffect(() => {
@@ -83,7 +93,7 @@ export const AppProvider = ({ children }) => {
     let cancelled = false;
     const loadBackendData = async () => {
       try {
-        const [productData, customerData, orderData, bookingData, employeeData, attendanceData, ledgerData, stageData, measurementData, userData, vendorData, purchaseOrderData, jobData] = await Promise.all([
+        const [productData, customerData, orderData, bookingData, employeeData, attendanceData, ledgerData, stageData, measurementData, userData, vendorData, purchaseOrderData, jobData, paymentData, productionJobData] = await Promise.all([
           productsApi.getAll(),
           customersApi.getAll(),
           posApi.getOrders(),
@@ -97,6 +107,8 @@ export const AppProvider = ({ children }) => {
           purchasesApi.getVendors(),
           purchasesApi.getOrders(),
           bookingsApi.getMasterJobs(),
+          employeesApi.getWorkPayments(),
+          ledgerApi.getProductionJobs('all'),
         ]);
         if (cancelled) return;
         setProducts(productData);
@@ -112,6 +124,8 @@ export const AppProvider = ({ children }) => {
         setVendors(vendorData);
         setPurchaseOrders(purchaseOrderData);
         setAssignedJobs(jobData);
+        setWorkPayments(paymentData);
+        setProductionJobs(productionJobData);
       } catch (error) {
         if (!cancelled) showToast(`Could not load backend data: ${error.message}`, 'danger');
       } finally {
@@ -275,6 +289,7 @@ export const AppProvider = ({ children }) => {
       customerName: saleData.customerName || 'Walk-in Retail Customer',
       customerPhone: saleData.customerPhone || 'N/A',
       items: saleData.items,
+      saleType: saleData.saleType || 'finished_product',
       subtotal: saleData.subtotal,
       discountTotal: saleData.discountTotal,
       tax: saleData.tax,
@@ -297,6 +312,7 @@ export const AppProvider = ({ children }) => {
       tax: saleData.tax,
       total: saleData.total,
       paymentMethod: saleData.paymentMethod,
+      saleType: saleData.saleType || 'finished_product',
     });
 
     setSalesOrders((prev) => [response.order, ...prev]);
@@ -367,6 +383,29 @@ export const AppProvider = ({ children }) => {
     const savedVendor = await purchasesApi.createVendor(newVendor);
     setVendors((prev) => [savedVendor, ...prev]);
     showToast(`Vendor ${newVendor.name} [${newVendor.id}] added!`, 'success');
+    return savedVendor;
+  };
+
+  const addProduct = async (productData) => {
+    const productNumber = products.length + 101;
+    const savedProduct = await productsApi.create({
+      id: `PRD-${productNumber}`,
+      name: productData.name,
+      sku: productData.sku || `NEW-${productNumber}`,
+      barcode: productData.barcode || `890100${productNumber}`,
+      category: productData.category || 'Bespoke & Custom',
+      price: Number(productData.price) || 0,
+      costPrice: Number(productData.costPrice) || 0,
+      mrp: Number(productData.mrp) || Number(productData.price) || 0,
+      stock: Number(productData.stock) || 0,
+      minStock: 5,
+      sizes: [],
+      colors: [],
+      image: '👔',
+    });
+    setProducts((prev) => [savedProduct, ...prev]);
+    showToast(`Product ${savedProduct.name} added!`, 'success');
+    return savedProduct;
   };
 
   const deleteVendor = async (vendorId) => {
@@ -424,6 +463,7 @@ export const AppProvider = ({ children }) => {
       quantity: Number(batchData.quantity) || 1,
       currentStage: batchData.currentStage || 'Fabric Sourcing & Inward',
       assignedTo: batchData.assignedTo || 'Unassigned',
+      employees: batchData.employees || [],
       startDate: batchData.startDate || new Date().toISOString().split('T')[0],
       targetDate: batchData.targetDate,
       progress: 15,
@@ -463,12 +503,17 @@ export const AppProvider = ({ children }) => {
       ],
     });
     setProductStages((prev) => prev.map((item) => item.id === batchId ? savedBatch : item));
+    setProductionJobs(await ledgerApi.getProductionJobs('all'));
     if (batch.bookingId) {
       const status = nextStageName.includes('Trial') ? 'Ready for Trial' : nextStageName.includes('Ready') ? 'Ready for Delivery' : 'In Production';
       const savedBooking = await api.patch(`/bookings/${batch.bookingId}`, { status });
       setOrderBookings((prev) => prev.map((item) => item.id === batch.bookingId ? savedBooking : item));
     }
     showToast(`Batch moved to ${nextStageName}!`, 'info');
+  };
+
+  const moveProductStageBackward = async (batchId, previousStageName, progressVal) => {
+    return advanceProductStage(batchId, previousStageName, progressVal);
   };
 
   const updateQCStatus = async (batchId, status, remarks) => {
@@ -532,7 +577,8 @@ export const AppProvider = ({ children }) => {
       advancePaid: Number(bookingData.advancePaid) || 0,
       balanceDue: Math.max(0, (Number(bookingData.totalAmount) || 0) - (Number(bookingData.advancePaid) || 0)),
       status: 'Booked',
-      assignedMaster: bookingData.assignedMaster || 'Senior Tailor',
+      assignedMaster: bookingData.assignedMaster || bookingData.assignedEmployees?.[0]?.employeeName || 'Senior Tailor',
+      assignedEmployees: bookingData.assignedEmployees || [],
       specialInstructions: bookingData.specialInstructions || '',
       measurementId: bookingData.measurementId || null,
     };
@@ -580,6 +626,7 @@ export const AppProvider = ({ children }) => {
     const savedEmployee = await employeesApi.create(newEmp);
     setEmployees((prev) => [...prev, savedEmployee]);
     showToast(`Employee ${newEmp.name} added!`, 'success');
+    return savedEmployee;
   };
 
   const updateEmployee = async (empId, updatedFields) => {
@@ -644,15 +691,44 @@ export const AppProvider = ({ children }) => {
     try {
       const completedJob = await bookingsApi.completeMasterJob(jobId);
       setAssignedJobs((prev) => prev.map((job) => job.id === jobId ? completedJob : job));
-      const [employeeData, bookingData] = await Promise.all([employeesApi.getAll(), bookingsApi.getAll()]);
+
+      // Refresh workPayments and productionJobs so the "Ready for Delivery
+      // Employee Dues" tab immediately shows the newly unlocked READY_FOR_PAYMENT
+      // entries without requiring a full page reload.
+      const [employeeData, bookingData, freshPayments, freshProdJobs] = await Promise.all([
+        employeesApi.getAll(),
+        bookingsApi.getAll(),
+        employeesApi.getWorkPayments(),
+        ledgerApi.getProductionJobs('all'),
+      ]);
       setEmployees(employeeData);
       setOrderBookings(bookingData);
-      showToast('Assigned task marked completed.', 'success');
+      setWorkPayments(freshPayments);
+      setProductionJobs(freshProdJobs);
+
+      showToast('Assigned task marked completed. Payment dues updated.', 'success');
       return completedJob;
     } catch (error) {
       showToast(`Task completion failed: ${error.message}`, 'danger');
       return null;
     }
+  };
+
+  const settleWorkPayment = async (jobId, paymentMethod = 'Cash') => {
+    const savedJob = await employeesApi.settleWorkPayment(jobId, paymentMethod);
+    setWorkPayments((prev) => prev.filter((job) => job.id !== jobId));
+    setProductionJobs((prev) => prev.map((job) => job.id === jobId ? savedJob : job));
+    showToast(`Payment settled for ${savedJob.employeeName}`, 'success');
+    return savedJob;
+  };
+
+  const settleEmployeeProductionBalance = async (employeeId, paymentMethod = 'Cash') => {
+    const response = await employeesApi.settleProductionBalance(employeeId, paymentMethod);
+    setWorkPayments((prev) => prev.filter((job) => job.employeeId !== employeeId));
+    setProductionJobs((prev) => prev.map((job) => response.jobs.find((paidJob) => paidJob.id === job.id) || job));
+    setLedgerEntries(await ledgerApi.getAll());
+    showToast(`Production balance settled for ${response.employee.name}`, 'success');
+    return response;
   };
 
   const checkInAttendance = (attId) => updateAttendanceRecord(attId, { action: 'checkIn' });
@@ -740,6 +816,8 @@ export const AppProvider = ({ children }) => {
         attendance,
         setAttendance,
         assignedJobs,
+        workPayments,
+        productionJobs,
 
         // POS & Cart
         cart,
@@ -753,16 +831,20 @@ export const AppProvider = ({ children }) => {
         selectedCustomer,
         setSelectedCustomer,
         completeSale,
+        settleWorkPayment,
+        settleEmployeeProductionBalance,
 
         // Purchase
         createPurchaseOrder,
         receiveStockFromPO,
         addVendor,
+        addProduct,
         deleteVendor,
 
         // Stages
         createProductBatch,
         advanceProductStage,
+        moveProductStageBackward,
         updateQCStatus,
 
         // Measurements & Bookings
@@ -787,6 +869,11 @@ export const AppProvider = ({ children }) => {
         setActiveTab,
         isMobileNavOpen,
         setIsMobileNavOpen,
+        measurementHubCustomerId,
+        measurementHubField,
+        setMeasurementHubCustomerId,
+        setMeasurementHubField,
+        openMeasurementHub,
         currency,
         theme,
         toggleTheme,

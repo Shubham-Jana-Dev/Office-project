@@ -4,6 +4,7 @@ import {
   GitBranch,
   Plus,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
   Calendar,
   Layers,
@@ -21,7 +22,7 @@ import { QCModal } from './QCModal';
 import { StatCard } from '../common/StatCard';
 
 export const StagesView = () => {
-  const { productStages, advanceProductStage } = useApp();
+  const { productStages, advanceProductStage, moveProductStageBackward } = useApp();
   const [selectedStage, setSelectedStage] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewBatchOpen, setIsNewBatchOpen] = useState(false);
@@ -41,6 +42,23 @@ export const StagesView = () => {
     const nextInfo = getNextStageInfo(batch.currentStage);
     if (nextInfo) {
       advanceProductStage(batch.id, nextInfo.nextStageName, nextInfo.progressVal);
+    }
+  };
+
+  const getPreviousStageInfo = (currentStageName) => {
+    const currentIndex = STAGES_LIST.findIndex((stage) => stage.name === currentStageName);
+    if (currentIndex > 0) {
+      const previousStage = STAGES_LIST[currentIndex - 1];
+      const progressVal = Math.round((currentIndex / STAGES_LIST.length) * 100);
+      return { previousStageName: previousStage.name, progressVal };
+    }
+    return null;
+  };
+
+  const handleMoveBackward = (batch) => {
+    const previousInfo = getPreviousStageInfo(batch.currentStage);
+    if (previousInfo) {
+      moveProductStageBackward(batch.id, previousInfo.previousStageName, previousInfo.progressVal);
     }
   };
 
@@ -233,6 +251,7 @@ export const StagesView = () => {
                 ) : (
                   batchesInStage.map((batch) => {
                     const nextInfo = getNextStageInfo(batch.currentStage);
+                    const previousInfo = getPreviousStageInfo(batch.currentStage);
                     return (
                       <div key={batch.id} className="stage-batch-card">
                         <div
@@ -320,11 +339,11 @@ export const StagesView = () => {
                         )}
 
                         {/* Actions */}
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'stretch' }}>
                           {stage.id === 6 && (
                             <button
                               className="btn btn-secondary btn-sm"
-                              style={{ flex: 1, fontSize: '0.75rem', padding: '6px 8px' }}
+                              style={{ flex: '1 1 120px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '0.75rem', padding: '6px 8px' }}
                               onClick={() => setSelectedBatchForQC(batch)}
                             >
                               <ShieldCheck size={14} color="#10B981" /> QC Check
@@ -334,11 +353,22 @@ export const StagesView = () => {
                           {nextInfo && (
                             <button
                               className="btn btn-primary btn-sm"
-                              style={{ flex: 1, fontSize: '0.75rem', padding: '6px 8px' }}
+                              style={{ flex: '1 1 120px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '0.75rem', padding: '6px 8px' }}
                               onClick={() => handleAdvance(batch)}
                               title={`Advance to ${nextInfo.nextStageName}`}
                             >
                               Next Stage <ArrowRight size={14} />
+                            </button>
+                          )}
+
+                          {previousInfo && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ flex: '1 1 120px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '0.75rem', padding: '6px 8px' }}
+                              onClick={() => handleMoveBackward(batch)}
+                              title={`Move back to ${previousInfo.previousStageName}`}
+                            >
+                              <ArrowLeft size={14} /> Previous Stage
                             </button>
                           )}
 

@@ -12,6 +12,8 @@ class Customer(db.Model):
     gstin = db.Column(db.String(50), nullable=True)
     credit_limit = db.Column(db.Numeric(10, 2), default=0.00)
     balance = db.Column(db.Numeric(10, 2), default=0.00)
+    buyer_type = db.Column(db.String(40), default='finished_product') # raw_material, finished_product, both
+    customer_segment = db.Column(db.String(40), default='retail') # retail, family, wholesale
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     measurements = db.relationship('Measurement', backref='customer', cascade='all, delete-orphan', lazy=True)
@@ -26,6 +28,9 @@ class Customer(db.Model):
             'gstin': self.gstin or '',
             'creditLimit': float(self.credit_limit) if self.credit_limit is not None else 0.0,
             'balance': float(self.balance) if self.balance is not None else 0.0,
+            'buyerType': self.buyer_type or 'finished_product',
+            'customerSegment': self.customer_segment or 'retail',
+            'type': 'Wholesale Buyer' if self.customer_segment == 'wholesale' else 'Family Buyer' if self.customer_segment == 'family' else 'Raw Material Buyer' if self.buyer_type == 'raw_material' else 'Both Buyer' if self.buyer_type == 'both' else 'Finished Product Buyer',
         }
 
 class Measurement(db.Model):
