@@ -21,8 +21,9 @@ def check_database_connection():
                 connection.execute(text('SELECT 1'))
         return True
     except Exception as error:
-        print('\nUnable to connect to the MySQL database "garment_erp".', file=sys.stderr)
-        print('Please make sure MySQL is running and DATABASE_URL in backend/.env is correct.', file=sys.stderr)
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "unknown")
+        print(f'\nUnable to connect to the MySQL database target: {db_uri}', file=sys.stderr)
+        print('Please make sure your database credentials and DATABASE_URL on Render are correct.', file=sys.stderr)
         print(f'Database error: {error}', file=sys.stderr)
         print('The API was not started.\n', file=sys.stderr)
         return False
