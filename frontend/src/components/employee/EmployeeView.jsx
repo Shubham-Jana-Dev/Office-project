@@ -29,6 +29,7 @@ import { AdvanceLoanModal } from './AdvanceLoanModal';
 import { AttendanceModal } from './AttendanceModal';
 import { EditSalaryModal } from './EditSalaryModal';
 import { CompensationGuideModal } from './CompensationGuideModal';
+import { ProductionHistoryModal } from './ProductionHistoryModal';
 
 export const EmployeeView = () => {
   const {
@@ -41,6 +42,10 @@ export const EmployeeView = () => {
     checkInAttendance,
     checkOutAttendance,
     completeAssignedJob,
+    workPayments,
+    productionJobs,
+    settleWorkPayment,
+    settleEmployeeProductionBalance,
   } = useApp();
 
   const [subTab, setSubTab] = useState('payroll'); // 'payroll', 'profiles', 'attendance'
@@ -51,6 +56,7 @@ export const EmployeeView = () => {
   const [selectedEmpForSalaryEdit, setSelectedEmpForSalaryEdit] = useState(null);
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [selectedEmpForHistory, setSelectedEmpForHistory] = useState(null);
 
   // Selected Month for Payroll
   const [payrollMonth, setPayrollMonth] = useState('September 2026');
@@ -216,6 +222,12 @@ export const EmployeeView = () => {
           onClick={() => setSubTab('payroll')}
         >
           <DollarSign size={14} /> Performance & Piece-Rate Salary Engine
+        </button>
+        <button
+          className={`btn ${subTab === 'payments' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          onClick={() => setSubTab('payments')}
+        >
+          <Wallet size={14} /> Ready Employee Payments ({workPayments.length})
         </button>
         <button
           className={`btn ${subTab === 'profiles' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
@@ -788,6 +800,7 @@ export const EmployeeView = () => {
                   </div>
                 </div>
 
+
                 {/* Advance Loan Status Box */}
                 <div
                   style={{
@@ -816,6 +829,13 @@ export const EmployeeView = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1 }}
+                    onClick={() => setSelectedEmpForHistory(emp)}
+                  >
+                    <TrendingUp size={13} /> Production & Earnings History
+                  </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     style={{ flex: 1 }}
@@ -1285,6 +1305,27 @@ export const EmployeeView = () => {
         </div>
       )}
 
+      {subTab === 'payments' && (
+        <div className="card table-responsive">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title"><Wallet size={18} color="#10B981" /> Ready for Delivery Employee Dues</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Only production work attached to delivery-ready products appears here.</p>
+            </div>
+          </div>
+          {workPayments.length === 0 ? <p style={{ color: 'var(--text-dim)', padding: '20px' }}>No unsettled production payments.</p> : (
+            <table className="data-table">
+              <thead><tr><th>Employee</th><th>Project</th><th>Quantity</th><th>Due</th><th>Ready Since</th><th>Action</th></tr></thead>
+              <tbody>{workPayments.map((job) => <tr key={job.id}>
+                <td><strong>{job.employeeName}</strong></td><td>{job.projectName}</td><td>{job.quantity}</td>
+                <td style={{ color: '#F59E0B', fontWeight: 800 }}>{formatCurrency(job.agreedAmount, currency)}</td><td>{job.readyAt || '-'}</td>
+                <td><button className="btn btn-success btn-sm" onClick={() => settleWorkPayment(job.id)}><CheckCircle2 size={13} /> Settle Payment</button></td>
+              </tr>)}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Modals */}
       <NewEmployeeModal isOpen={isNewEmpOpen} onClose={() => setIsNewEmpOpen(false)} />
       <AdvanceLoanModal
@@ -1303,6 +1344,17 @@ export const EmployeeView = () => {
         onClose={() => setIsGuideOpen(false)}
       />
       <AttendanceModal isOpen={isAttendanceOpen} onClose={() => setIsAttendanceOpen(false)} />
+      <ProductionHistoryModal
+        isOpen={Boolean(selectedEmpForHistory)}
+        onClose={() => setSelectedEmpForHistory(null)}
+        employee={selectedEmpForHistory}
+        jobs={(productionJobs || []).filter((job) => job.employeeId === selectedEmpForHistory?.id)}
+        currency={currency}
+        onSettle={async (employeeId) => {
+          await settleEmployeeProductionBalance(employeeId);
+          setSelectedEmpForHistory(null);
+        }}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
+import { SearchableSelect } from '../common/SearchableSelect';
 import { BookOpen, DollarSign } from 'lucide-react';
 
 export const VoucherModal = ({ isOpen, onClose }) => {
@@ -67,33 +68,28 @@ export const VoucherModal = ({ isOpen, onClose }) => {
         <div>
           <label className="form-label">Party Name / Expense Head</label>
           {partyType === 'Customer' ? (
-            <select
-              className="form-select"
+            <SearchableSelect
               value={partyName}
-              onChange={(e) => setPartyName(e.target.value)}
+              onChange={setPartyName}
+              options={customers.map((customer) => ({
+                value: customer.name,
+                label: `${customer.name} (${customer.phone})`,
+              }))}
+              placeholder="Search customer name or phone..."
+              addNewLabel="Add new customer"
+              onAddNew={() => {}}
               required
-            >
-              <option value="">-- Select Customer --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name} ({c.phone})
-                </option>
-              ))}
-            </select>
+            />
           ) : partyType === 'Supplier' ? (
-            <select
-              className="form-select"
+            <SearchableSelect
               value={partyName}
-              onChange={(e) => setPartyName(e.target.value)}
+              onChange={setPartyName}
+              options={vendors.map((vendor) => ({ value: vendor.name, label: vendor.name }))}
+              placeholder="Search supplier or mill..."
+              addNewLabel="Add new supplier"
+              onAddNew={() => {}}
               required
-            >
-              <option value="">-- Select Supplier / Mill --</option>
-              {vendors.map((v) => (
-                <option key={v.id} value={v.name}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+            />
           ) : (
             <input
               type="text"

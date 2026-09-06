@@ -3,9 +3,64 @@ from flask import Blueprint, request, jsonify
 from backend.app.models.booking import OrderBooking, MasterJobAssignment
 from backend.app.models.employee import Employee
 from backend.app.models.ledger import LedgerEntry, ProductStage
+from backend.app.models.production import ProductionJob
 from backend.app.extensions import db
 
 bookings_bp = Blueprint('bookings', __name__)
+
+
+def _assigned_employees(data):
+    """Normalize legacy assignedMaster and new assignedEmployees payloads."""
+    raw_assignments = data.get('assignedEmployees')
+    if raw_assignments is None:
+        raw_assignments = data.get('assigned_employees')
+    if raw_assignments is None and data.get('assignedMaster'):
+        raw_assignments = [data['assignedMaster']]
+
+    assignments = []
+    for assignment in raw_assignments or []:
+        if isinstance(assignment, str):
+            employee = Employee.query.filter(Employee.name == assignment).first()
+            assignments.append({
+                'employeeId': employee.id if employee else None,
+                'employeeName': employee.name if employee else assignment,
+                'role': employee.role if employee else None,
+            })
+            continue
+
+        employee_key = assignment.get('employeeId') or assignment.get('id') or assignment.get('empId')
+        employee = Employee.query.filter(
+            (Employee.id == employee_key) | (Employee.emp_id == employee_key)
+        ).first() if employee_key else None
+        employee_name = assignment.get('employeeName') or assignment.get('name')
+        if not employee and employee_name:
+            employee = Employee.query.filter(Employee.name == employee_name).first()
+        if not employee_name and employee:
+            employee_name = employee.name
+        if employee_name:
+            assignments.append({
+                'employeeId': employee.id if employee else employee_key,
+                'employeeName': employee_name,
+                'role': assignment.get('role') or (employee.role if employee else None),
+            })
+    return assignments
+
+
+def _replace_booking_jobs(booking, assignments):
+    MasterJobAssignment.query.filter_by(booking_id=booking.id).delete(synchronize_session='fetch')
+    garment = booking.garment_type.lower()
+    incentive = 500.00 if 'suit' in garment else 400.00 if 'sherwani' in garment else 200.00
+    for index, assignment in enumerate(assignments):
+        db.session.add(MasterJobAssignment(
+            id=f"JOB-{booking.id}-{index + 1}",
+            booking_id=booking.id,
+            master_id=assignment.get('employeeId'),
+            master_name=assignment['employeeName'],
+            garment_type=booking.garment_type,
+            incentive_rate=assignment.get('incentiveRate', incentive),
+            work_status='ASSIGNED',
+            payout_status='PENDING_DELIVERY',
+        ))
 
 @bookings_bp.route('', methods=['GET'])
 def get_bookings():
@@ -27,6 +82,11 @@ def update_booking(booking_id):
 
     data = request.get_json() or {}
     if 'status' in data: booking.status = data['status']
+    if 'assignedEmployees' in data or 'assigned_employees' in data or 'assignedMaster' in data:
+        assignments = _assigned_employees(data)
+        booking.assigned_employees = assignments
+        booking.assigned_master = assignments[0]['employeeName'] if assignments else None
+        _replace_booking_jobs(booking, assignments)
     if data.get('balancePaidNow'):
         amount = float(data['balancePaidNow'])
         booking.advance_paid = float(booking.advance_paid or 0) + amount
@@ -41,6 +101,7 @@ def create_booking():
     new_id = data.get('id') or f"BKG-2026-{OrderBooking.query.count() + 101}"
     booking_no = data.get('bookingNo') or f"BK-{OrderBooking.query.count() + 101}"
     
+    assignments = _assigned_employees(data)
     booking = OrderBooking(
         id=new_id,
         booking_no=booking_no,
@@ -56,7 +117,8 @@ def create_booking():
         advance_paid=data.get('advancePaid', 0.0),
         balance_due=data.get('balanceDue', 0.0),
         status=data.get('status', 'In Production'),
-        assigned_master=data.get('assignedMaster'),
+        assigned_master=assignments[0]['employeeName'] if assignments else data.get('assignedMaster'),
+        assigned_employees=assignments,
         special_instructions=data.get('specialInstructions'),
         measurement_id=data.get('measurementId'),
     )
@@ -71,7 +133,7 @@ def create_booking():
         garment_type=data.get('garmentType', 'Custom Tailoring'),
         quantity=1,
         current_stage=initial_stage,
-        assigned_to=data.get('assignedMaster'),
+        assigned_to=assignments[0]['employeeName'] if assignments else None,
         start_date=data.get('bookingDate', datetime.utcnow().strftime('%Y-%m-%d')),
         target_date=data.get('deliveryDate'),
         progress=15,
@@ -81,34 +143,29 @@ def create_booking():
             'stage': initial_stage,
             'date': datetime.utcnow().strftime('%Y-%m-%d'),
             'status': 'Active',
-            'by': data.get('assignedMaster') or 'Supervisor',
+            'by': assignments[0]['employeeName'] if assignments else 'Supervisor',
         }],
     ))
 
     # Automatically create a MasterJobAssignment tracking delivery-linked bonus
-    assigned_master_name = data.get('assignedMaster')
-    if assigned_master_name:
-        # Determine incentive based on garment type
-        garment = data.get('garmentType', '').lower()
-        incentive = 200.00
-        if 'suit' in garment:
-            incentive = 500.00
-        elif 'sherwani' in garment:
-            incentive = 400.00
+    _replace_booking_jobs(booking, assignments)
 
-        # Try to find employee
-        master_emp = Employee.query.filter(Employee.name.like(f"%{assigned_master_name.split()[0]}%")).first()
-        job = MasterJobAssignment(
-            id=f"JOB-{int(datetime.utcnow().timestamp())}",
-            booking_id=new_id,
-            master_id=master_emp.id if master_emp else None,
-            master_name=assigned_master_name,
-            garment_type=data.get('garmentType', 'Custom Tailoring'),
-            incentive_rate=incentive,
-            work_status='ASSIGNED',
-            payout_status='PENDING_DELIVERY',
-        )
-        db.session.add(job)
+    # FIX 1: Create ProductionJob (IN_PROGRESS) for each assigned employee so
+    # their Production & Earnings History is populated from the moment of booking.
+    garment_lower = data.get('garmentType', '').lower()
+    piece_rate = 500.00 if 'suit' in garment_lower else 400.00 if 'sherwani' in garment_lower else 200.00
+    booking_stage_id = f"STG-{new_id}"
+    for idx, assignment in enumerate(assignments):
+        db.session.add(ProductionJob(
+            id=f"PJOB-{new_id}-{idx + 1}",
+            stage_id=booking_stage_id,
+            employee_id=assignment.get('employeeId'),
+            employee_name=assignment['employeeName'],
+            project_name=data.get('garmentType', 'Custom Tailoring'),
+            quantity=1,
+            agreed_amount=piece_rate,
+            status='IN_PROGRESS',
+        ))
 
     db.session.commit()
     return jsonify(booking.to_dict()), 201
@@ -150,6 +207,7 @@ def deliver_and_settle(booking_id):
                 emp.pieces_completed_this_month = (emp.pieces_completed_this_month or 0) + 1
 
     linked_stages = ProductStage.query.filter_by(booking_id=booking_id).all()
+    stage_ids = [s.id for s in linked_stages]
     for stage in linked_stages:
         stage.current_stage = 'Showroom / Ready Stock'
         stage.progress = 100
@@ -163,8 +221,21 @@ def deliver_and_settle(booking_id):
             },
         ]
 
+    # FIX 2: Flip all IN_PROGRESS ProductionJobs for this booking's stages to
+    # READY_FOR_PAYMENT so the employee's earnings history shows a pending balance.
+    if stage_ids:
+        ready_at = datetime.utcnow()
+        for pjob in ProductionJob.query.filter(
+            ProductionJob.stage_id.in_(stage_ids),
+            ProductionJob.status == 'IN_PROGRESS',
+        ).all():
+            pjob.status = 'READY_FOR_PAYMENT'
+            pjob.ready_at = ready_at
+
     # Record ledger entry for the settled balance
     if prev_balance > 0:
+        last_entry = LedgerEntry.query.order_by(LedgerEntry.created_at.desc()).first()
+        prev_ledger_bal = float(last_entry.balance_after or 0) if last_entry else 0.0
         ledger = LedgerEntry(
             id=f"LED-SETTLE-{int(datetime.utcnow().timestamp())}",
             date=datetime.utcnow().strftime('%Y-%m-%d'),
@@ -172,7 +243,7 @@ def deliver_and_settle(booking_id):
             category='Custom Tailoring Final Settlement',
             description=f"Delivery & Balance Settlement for Booking #{booking.booking_no} ({booking.customer_name})",
             amount=prev_balance,
-            balance_after=20000.0, # will calculate or keep
+            balance_after=prev_ledger_bal + prev_balance,
             reference=booking.booking_no,
         )
         db.session.add(ledger)
@@ -208,5 +279,21 @@ def complete_master_job(job_id):
             employee = Employee.query.get(job.master_id)
             if employee:
                 employee.pieces_completed_this_month = (employee.pieces_completed_this_month or 0) + 1
+
+        # FIX 3: Flip the employee's linked ProductionJob for this booking to
+        # READY_FOR_PAYMENT so their earnings history shows the pending balance.
+        booking_stage_ids = [
+            s.id for s in ProductStage.query.filter_by(booking_id=job.booking_id).all()
+        ]
+        if booking_stage_ids and job.master_id:
+            ready_at = datetime.utcnow()
+            for pjob in ProductionJob.query.filter(
+                ProductionJob.stage_id.in_(booking_stage_ids),
+                ProductionJob.employee_id == job.master_id,
+                ProductionJob.status == 'IN_PROGRESS',
+            ).all():
+                pjob.status = 'READY_FOR_PAYMENT'
+                pjob.ready_at = ready_at
+
     db.session.commit()
     return jsonify(job.to_dict()), 200

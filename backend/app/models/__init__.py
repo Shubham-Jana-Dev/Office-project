@@ -4,6 +4,7 @@ from backend.app.models.customer import Customer, Measurement
 from backend.app.models.order import SalesOrder, SalesOrderItem, Vendor, PurchaseOrder
 from backend.app.models.booking import OrderBooking, MasterJobAssignment
 from backend.app.models.employee import Employee, Attendance
+from backend.app.models.production import ProductionJob
 from backend.app.models.ledger import LedgerEntry, ProductStage
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     'OrderBooking',
     'MasterJobAssignment',
     'Employee',
+    'ProductionJob',
     'Attendance',
     'LedgerEntry',
     'ProductStage',

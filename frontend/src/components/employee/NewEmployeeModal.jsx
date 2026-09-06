@@ -3,20 +3,24 @@ import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
 import { Users, Plus } from 'lucide-react';
 
-export const NewEmployeeModal = ({ isOpen, onClose }) => {
+export const NewEmployeeModal = ({ isOpen, onClose, onEmployeeCreated, initialName = '' }) => {
   const { addEmployee } = useApp();
 
   const [name, setName] = useState('');
-  const [role, setRole] = useState('Master Tailor (Suit Specialist)');
+  const [role, setRole] = useState('Master Tailor');
   const [department, setDepartment] = useState('Production & Bespoke');
   const [phone, setPhone] = useState('');
   const [payType, setPayType] = useState('piece_rate'); // piece_rate, fixed, commission_fixed
   const [baseSalary, setBaseSalary] = useState('600.00');
   const [overtimeRatePerHour, setOvertimeRatePerHour] = useState('8.00');
 
-  const handleSubmit = (e) => {
+  React.useEffect(() => {
+    if (isOpen && initialName) setName(initialName);
+  }, [isOpen, initialName]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    addEmployee({
+    const createdEmployee = await addEmployee({
       name,
       role,
       department,
@@ -25,6 +29,7 @@ export const NewEmployeeModal = ({ isOpen, onClose }) => {
       baseSalary: Number(baseSalary) || 500,
       overtimeRatePerHour: Number(overtimeRatePerHour) || 8,
     });
+    if (onEmployeeCreated) onEmployeeCreated(createdEmployee);
     onClose();
   };
 
@@ -51,14 +56,13 @@ export const NewEmployeeModal = ({ isOpen, onClose }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <div>
             <label className="form-label">Job Role / Designation</label>
-            <input
-              type="text"
-              className="form-input"
-              required
-              placeholder="e.g. Master Tailor, Senior Cutter, Sales Exec"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            />
+            <select className="form-select" required value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="Cutter">Cutter</option>
+              <option value="Master Tailor">Master Tailor</option>
+              <option value="Stitching">Stitching</option>
+              <option value="Washing">Washing</option>
+              <option value="Finishing">Finishing</option>
+            </select>
           </div>
           <div>
             <label className="form-label">Department</label>

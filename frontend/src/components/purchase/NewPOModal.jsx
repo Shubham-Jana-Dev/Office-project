@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
+import { SearchableSelect } from '../common/SearchableSelect';
+import { VendorModal } from './VendorModal';
+import { ProductModal } from '../common/ProductModal';
 import { Plus, Trash2, Truck } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -11,6 +14,10 @@ export const NewPOModal = ({ isOpen, onClose }) => {
   const [expectedDate, setExpectedDate] = useState('');
   const [paidAmount, setPaidAmount] = useState(0);
   const [notes, setNotes] = useState('');
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+  const [newVendorName, setNewVendorName] = useState('');
+  const [newProductName, setNewProductName] = useState('');
+  const [productRowIndex, setProductRowIndex] = useState(null);
   const [items, setItems] = useState([
     { name: products[0]?.name || 'Cotton Fabric Rolls', qty: 50, unitPrice: 5.00 },
   ]);
@@ -75,18 +82,21 @@ export const NewPOModal = ({ isOpen, onClose }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
             <label className="form-label">Select Vendor / Textile Mill</label>
-            <select
-              className="form-select"
+            <SearchableSelect
               value={selectedVendorId}
-              onChange={(e) => setSelectedVendorId(e.target.value)}
+              onChange={setSelectedVendorId}
+              options={vendors.map((vendor) => ({
+                value: vendor.id,
+                label: `${vendor.name} (${vendor.category})`,
+              }))}
+              placeholder="Search vendor or textile mill..."
+              addNewLabel="Add new supplier"
+              onAddNew={(name) => {
+                setNewVendorName(name);
+                setIsVendorModalOpen(true);
+              }}
               required
-            >
-              {vendors.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name} ({v.category})
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
@@ -128,12 +138,16 @@ export const NewPOModal = ({ isOpen, onClose }) => {
                   borderRadius: 'var(--radius-md)',
                 }}
               >
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Material / Garment Item Name"
+                <SearchableSelect
                   value={item.name}
-                  onChange={(e) => handleItemChange(index, 'name', e.target.value)}
+                  onChange={(name) => handleItemChange(index, 'name', name)}
+                  options={products.map((product) => ({ value: product.name, label: product.name }))}
+                  placeholder="Search product or type a new item..."
+                  addNewLabel="Add new product"
+                  onAddNew={(name) => {
+                    setNewProductName(name);
+                    setProductRowIndex(index);
+                  }}
                   required
                 />
                 <input
@@ -235,6 +249,21 @@ export const NewPOModal = ({ isOpen, onClose }) => {
           <Truck size={18} /> Generate Purchase Order & Update Ledger
         </button>
       </form>
+      <VendorModal
+        isOpen={isVendorModalOpen}
+        onClose={() => setIsVendorModalOpen(false)}
+        initialName={newVendorName}
+        onVendorCreated={(vendor) => setSelectedVendorId(vendor.id)}
+      />
+      <ProductModal
+        isOpen={productRowIndex !== null}
+        onClose={() => setProductRowIndex(null)}
+        initialName={newProductName}
+        onProductCreated={(product) => {
+          handleItemChange(productRowIndex, 'name', product.name);
+          setProductRowIndex(null);
+        }}
+      />
     </Modal>
   );
 };

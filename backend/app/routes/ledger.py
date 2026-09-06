@@ -1,8 +1,21 @@
 from flask import Blueprint, request, jsonify
 from backend.app.models.ledger import LedgerEntry, ProductStage
+from backend.app.models.production import ProductionJob
+from backend.app.models.employee import Employee
+from datetime import datetime
 from backend.app.extensions import db
 
 ledger_bp = Blueprint('ledger', __name__)
+
+WORKFLOW_STAGES = (
+    'Fabric Sourcing & Inward',
+    'Pattern Making & Cutting',
+    'Stitching & Tailoring',
+    'Embroidery & Detailing',
+    'Washing & Finishing',
+    'Quality Check (QC Inspection)',
+    'Showroom / Ready Stock',
+)
 
 @ledger_bp.route('', methods=['GET'])
 def get_ledger_entries():
@@ -54,6 +67,22 @@ def create_stage():
         history=data.get('history', []),
     )
     db.session.add(stage)
+    for index, assignment in enumerate(data.get('employees', [])):
+        employee_id = assignment.get('employeeId') or assignment.get('employee_id')
+        employee = Employee.query.filter((Employee.id == employee_id) | (Employee.emp_id == employee_id)).first() if employee_id else None
+        job = ProductionJob(
+            id=f"JOB-{stage.id}-{index + 1}",
+            stage_id=stage.id,
+            employee_id=employee.id if employee else None,
+            employee_name=assignment.get('employeeName') or (employee.name if employee else 'Unassigned'),
+            project_name=stage.garment_type,
+            quantity=stage.quantity,
+            agreed_amount=assignment.get('amount', assignment.get('agreedAmount', 0)),
+        )
+        if stage.current_stage.lower() in {'ready for delivery', 'showroom / ready stock', 'ready'}:
+            job.status = 'READY_FOR_PAYMENT'
+            job.ready_at = datetime.utcnow()
+        db.session.add(job)
     db.session.commit()
     return jsonify(stage.to_dict()), 201
 
@@ -64,7 +93,15 @@ def update_stage(stage_id):
         return jsonify({'error': 'Stage not found'}), 404
 
     data = request.get_json() or {}
-    if 'currentStage' in data: stage.current_stage = data['currentStage']
+    if 'currentStage' in data:
+        requested_stage = data['currentStage']
+        if requested_stage not in WORKFLOW_STAGES:
+            return jsonify({'error': f'Invalid workflow stage. Choose one of: {", ".join(WORKFLOW_STAGES)}'}), 400
+        current_index = WORKFLOW_STAGES.index(stage.current_stage) if stage.current_stage in WORKFLOW_STAGES else None
+        requested_index = WORKFLOW_STAGES.index(requested_stage)
+        if current_index is not None and requested_index not in {current_index - 1, current_index + 1}:
+            return jsonify({'error': 'A product can only move to the immediately preceding or following workflow stage'}), 400
+        stage.current_stage = requested_stage
     if 'progress' in data: stage.progress = data['progress']
     if 'history' in data: stage.history = data['history']
     if 'qcStatus' in data: stage.qc_status = data['qcStatus']
@@ -73,5 +110,23 @@ def update_stage(stage_id):
     if 'targetDate' in data: stage.target_date = data['targetDate']
     if 'bookingId' in data: stage.booking_id = data['bookingId']
 
+    if stage.current_stage.lower() in {'ready for delivery', 'showroom / ready stock', 'ready'}:
+        ready_at = datetime.utcnow()
+        for job in ProductionJob.query.filter_by(stage_id=stage.id).all():
+            if job.status == 'IN_PROGRESS':
+                job.status = 'READY_FOR_PAYMENT'
+                job.ready_at = ready_at
+
     db.session.commit()
     return jsonify(stage.to_dict()), 200
+
+
+@ledger_bp.route('/production-jobs', methods=['GET'])
+def get_production_jobs():
+    status = request.args.get('status')
+    query = ProductionJob.query
+    # 'all' means no filter — return every job regardless of status
+    if status and status.lower() != 'all':
+        query = query.filter_by(status=status)
+    jobs = query.order_by(ProductionJob.created_at.desc()).all()
+    return jsonify([job.to_dict() for job in jobs]), 200

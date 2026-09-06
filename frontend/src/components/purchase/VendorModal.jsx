@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
 import { Building2, Plus } from 'lucide-react';
 
-export const VendorModal = ({ isOpen, onClose }) => {
+export const VendorModal = ({ isOpen, onClose, onVendorCreated, initialName = '' }) => {
   const { addVendor } = useApp();
   const [formData, setFormData] = useState({
     customId: '',
@@ -18,9 +18,14 @@ export const VendorModal = ({ isOpen, onClose }) => {
     rating: 5.0,
   });
 
+  React.useEffect(() => {
+    if (isOpen && initialName) setFormData((previous) => ({ ...previous, name: initialName }));
+  }, [isOpen, initialName]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await addVendor(formData);
+    const vendor = await addVendor(formData);
+    onVendorCreated?.(vendor);
     onClose();
   };
 

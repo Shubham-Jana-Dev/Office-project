@@ -17,7 +17,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 
 export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => {
-  const { updateEmployeeSalary, currency, attendance } = useApp();
+  const { updateEmployee, updateEmployeeSalary, currency, attendance } = useApp();
 
   // Controlled states for all salary components
   const [baseSalary, setBaseSalary] = useState('');
@@ -36,11 +36,13 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
   const [taxDeduction, setTaxDeduction] = useState('0.00');
   const [customDeduction, setCustomDeduction] = useState('0.00');
   const [customDeductionNote, setCustomDeductionNote] = useState('');
+  const [role, setRole] = useState('Master Tailor');
 
   // Synchronize initial values when employee opens
   useEffect(() => {
     if (employee) {
       setBaseSalary(String(employee.baseSalary ?? 500));
+      setRole(['Cutter', 'Master Tailor', 'Stitching', 'Washing', 'Finishing'].includes(employee.role) ? employee.role : 'Master Tailor');
       setPiecesCompleted(String(employee.piecesCompletedThisMonth ?? 15));
       setPieceRateUnit(String(employee.pieceRateUnit ?? 28.50));
       setSalesAchieved(String(employee.salesAchievedThisMonth ?? 8400));
@@ -129,6 +131,9 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
       customDeduction: numCustomDed,
       customDeductionNote,
     });
+    if (role !== employee.role) {
+      updateEmployee(employee.id, { role });
+    }
     onClose();
   };
 
@@ -226,6 +231,19 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
             <RoleIcon size={14} />
             <span>{roleInfo.tag}</span>
           </div>
+        </div>
+
+        <div className="card" style={{ padding: '14px', margin: 0, background: 'var(--bg-surface)' }}>
+          <label className="form-label" style={{ marginBottom: '8px', fontWeight: 700 }}>
+            Employee Role
+          </label>
+          <select className="form-select" value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="Cutter">Cutter</option>
+            <option value="Master Tailor">Master Tailor</option>
+            <option value="Stitching">Stitching</option>
+            <option value="Washing">Washing</option>
+            <option value="Finishing">Finishing</option>
+          </select>
         </div>
 
         {/* Section 1: Guaranteed Base Pay */}

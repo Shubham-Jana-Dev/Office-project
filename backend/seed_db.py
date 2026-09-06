@@ -2,6 +2,29 @@ import json
 import os
 import sys
 
+
+def _validate_seed_environment():
+    environment = os.getenv('FLASK_ENV') or os.getenv('APP_ENV') or os.getenv('ENV') or ''
+    normalized_environment = environment.strip().lower()
+    if normalized_environment in {'production', 'prod'}:
+        print(
+            '!!! REFUSING TO RUN seed_db.py: production environment detected. '
+            'This script drops and recreates every database table.',
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    if os.getenv('SEED_DB_ALLOW_DESTRUCTIVE') != '1':
+        print(
+            '!!! REFUSING TO RUN seed_db.py: destructive seed confirmation is missing. '
+            'Set SEED_DB_ALLOW_DESTRUCTIVE=1 only for an intentional non-production reset.',
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
+_validate_seed_environment()
+
 # Ensure backend root is in python path
 backend_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(backend_dir))
@@ -23,7 +46,16 @@ from backend.app.models import (
     Attendance,
     LedgerEntry,
     ProductStage,
+    ProductionJob,
 )
+from backend.app.models.employee import EMPLOYEE_ROLES
+
+LEGACY_ROLE_MAP = {
+    'Master Tailor (Suit Specialist)': 'Master Tailor',
+    'Senior Pattern Maker & Cutter': 'Cutter',
+    'Head Sales Executive & POS Cashier': 'Finishing',
+    'Quality Control Lead & Finisher': 'Finishing',
+}
 
 app = create_app()
 
@@ -75,6 +107,7 @@ def seed_database():
                     price=p.get('price', 0.0),
                     mrp=p.get('mrp', p.get('price', 0.0)),
                     stock=p.get('stock', 0),
+                    unit=p.get('unit', 'Piece'),
                     min_stock=p.get('minStock', 5),
                     sizes=p.get('sizes', []),
                     colors=p.get('colors', []),
@@ -117,6 +150,8 @@ def seed_database():
                     gstin=c.get('gstin'),
                     credit_limit=c.get('creditLimit', 0.0),
                     balance=c.get('balance', 0.0),
+                    buyer_type=c.get('buyerType', 'finished_product'),
+                    customer_segment=c.get('customerSegment', 'retail'),
                 )
                 db.session.add(customer)
             db.session.commit()
@@ -146,7 +181,7 @@ def seed_database():
                     id=e.get('id'),
                     emp_id=e.get('empId'),
                     name=e.get('name'),
-                    role=e.get('role'),
+                    role=LEGACY_ROLE_MAP.get(e.get('role'), e.get('role') if e.get('role') in EMPLOYEE_ROLES else 'Master Tailor'),
                     department=e.get('department'),
                     phone=e.get('phone'),
                     join_date=e.get('joinDate'),
@@ -271,6 +306,24 @@ def seed_database():
                 db.session.add(stage)
             db.session.commit()
 
+        # 10b. Seed employee production jobs after their stages and employees exist
+        if ProductionJob.query.count() == 0:
+            print("🧾 Seeding Production Work Payments...")
+            for job_data in data.get('INITIAL_PRODUCTION_JOBS', []):
+                employee = Employee.query.filter((Employee.id == job_data.get('employeeId')) | (Employee.emp_id == job_data.get('employeeId'))).first()
+                job = ProductionJob(
+                    id=job_data.get('id'),
+                    stage_id=job_data.get('stageId'),
+                    employee_id=employee.id if employee else job_data.get('employeeId'),
+                    employee_name=job_data.get('employeeName') or (employee.name if employee else 'Unassigned'),
+                    project_name=job_data.get('projectName'),
+                    quantity=job_data.get('quantity', 1),
+                    agreed_amount=job_data.get('agreedAmount', 0),
+                    status=job_data.get('status', 'IN_PROGRESS'),
+                )
+                db.session.add(job)
+            db.session.commit()
+
         # 11. Seed Sales Orders
         if SalesOrder.query.count() == 0:
             print("🧾 Seeding Sales Orders...")
@@ -286,6 +339,7 @@ def seed_database():
                     tax=o.get('tax', 0.0),
                     total=o.get('total', 0.0),
                     payment_method=o.get('paymentMethod', 'Cash'),
+                    sale_type=o.get('saleType', 'finished_product'),
                     status=o.get('status', 'Completed'),
                     items_data=o.get('items', []),
                 )

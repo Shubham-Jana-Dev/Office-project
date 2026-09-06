@@ -34,6 +34,7 @@ export const POSView = () => {
   } = useApp();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [saleType, setSaleType] = useState('finished_product');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVariants, setSelectedVariants] = useState({}); // { [productId]: { size, color } }
   
@@ -44,28 +45,32 @@ export const POSView = () => {
   const [completedOrder, setCompletedOrder] = useState(null);
   const cartRef = useRef(null);
 
-  const categories = [
+  const finishedCategories = [
     'All',
     'Formal Shirts',
     'Suits & Blazers',
     'Trousers & Chinos',
     'Denims',
     'Ethnic & Festive',
-    'Raw Fabrics',
     'Accessories',
   ];
+  const rawCategories = ['All', 'Raw Fabrics', 'Raw Materials', 'Threads & Trims', 'Lining'];
+  const categories = saleType === 'raw_material' ? rawCategories : finishedCategories;
 
   // Filtered Products
   const filteredProducts = products.filter((p) => {
+    const matchesType = saleType === 'raw_material'
+      ? ['Raw Fabrics', 'Raw Materials', 'Threads & Trims', 'Lining'].includes(p.category)
+      : !['Raw Fabrics', 'Raw Materials', 'Threads & Trims', 'Lining'].includes(p.category);
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
     const q = searchQuery.toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      p.barcode?.includes(q) ||
-      p.brand.toLowerCase().includes(q) ||
-      p.fabric?.toLowerCase().includes(q);
-    return matchesCat && matchesSearch;
+      String(p.name || '').toLowerCase().includes(q) ||
+      String(p.sku || '').toLowerCase().includes(q) ||
+      String(p.barcode || '').toLowerCase().includes(q) ||
+      String(p.brand || '').toLowerCase().includes(q) ||
+      String(p.fabric || '').toLowerCase().includes(q);
+    return matchesType && matchesCat && matchesSearch;
   });
 
   // Calculate Cart Totals
@@ -107,7 +112,7 @@ export const POSView = () => {
       {/* Top Banner */}
       <div className="responsive-header-row">
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Point of Sale & Counter Billing</h1>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>{saleType === 'raw_material' ? 'Raw Material Sales POS' : 'Finished Product Sales POS'}</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             High-speed billing terminal with garment variant selection, barcode scan, and instant invoice printing
           </p>
@@ -118,6 +123,15 @@ export const POSView = () => {
             Hardware Barcode Scanner
           </button>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+        <button className={`btn ${saleType === 'finished_product' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setSaleType('finished_product'); setSelectedCategory('All'); clearCart(); }}>
+          <Tag size={15} /> Finished Products
+        </button>
+        <button className={`btn ${saleType === 'raw_material' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setSaleType('raw_material'); setSelectedCategory('All'); clearCart(); }}>
+          <Layers size={15} /> Raw Materials
+        </button>
       </div>
 
       {/* POS Layout Split */}
@@ -430,6 +444,7 @@ export const POSView = () => {
         discountTotal={overallDiscountAmount}
         tax={taxAmount}
         grandTotal={grandTotal}
+        saleType={saleType}
         onSuccessOrder={handleOrderSuccess}
       />
 

@@ -14,6 +14,7 @@ class SalesOrder(db.Model):
     tax = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     payment_method = db.Column(db.String(50), default='Cash') # Cash, Card, UPI, Split
+    sale_type = db.Column(db.String(30), default='finished_product') # raw_material, finished_product
     status = db.Column(db.String(50), default='Completed') # Completed, Refunded, Cancelled
     items_data = db.Column(db.JSON, nullable=True) # Stored snapshot of items
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -32,6 +33,7 @@ class SalesOrder(db.Model):
             'tax': float(self.tax) if self.tax is not None else 0.0,
             'total': float(self.total) if self.total is not None else 0.0,
             'paymentMethod': self.payment_method,
+            'saleType': self.sale_type,
             'status': self.status,
             'items': self.items_data or [item.to_dict() for item in self.items],
             'createdAt': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '',

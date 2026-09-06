@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS products (
     price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     mrp DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     stock INT NOT NULL DEFAULT 0,
+    unit VARCHAR(30) DEFAULT 'Piece',
     min_stock INT NOT NULL DEFAULT 5,
     sizes JSON,
     colors JSON,
@@ -52,6 +53,8 @@ CREATE TABLE IF NOT EXISTS customers (
     gstin VARCHAR(50),
     credit_limit DECIMAL(10, 2) DEFAULT 0.00,
     balance DECIMAL(10, 2) DEFAULT 0.00,
+    buyer_type VARCHAR(40) DEFAULT 'finished_product',
+    customer_segment VARCHAR(40) DEFAULT 'retail',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -111,6 +114,7 @@ CREATE TABLE IF NOT EXISTS sales_orders (
     tax DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     total DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     payment_method VARCHAR(50) DEFAULT 'Cash',
+    sale_type VARCHAR(30) DEFAULT 'finished_product',
     status VARCHAR(50) DEFAULT 'Completed',
     items_data JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -131,12 +135,22 @@ CREATE TABLE IF NOT EXISTS sales_order_items (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 );
 
+ALTER TABLE sales_orders
+    ADD COLUMN IF NOT EXISTS sale_type VARCHAR(30) DEFAULT 'finished_product';
+
+ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS buyer_type VARCHAR(40) DEFAULT 'finished_product',
+    ADD COLUMN IF NOT EXISTS customer_segment VARCHAR(40) DEFAULT 'retail';
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS unit VARCHAR(30) DEFAULT 'Piece';
+
 -- 9. Employees Table
 CREATE TABLE IF NOT EXISTS employees (
     id VARCHAR(50) PRIMARY KEY,
     emp_id VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
-    role VARCHAR(120) NOT NULL,
+    role VARCHAR(120) NOT NULL COMMENT 'Cutter, Master Tailor, Stitching, Washing, or Finishing',
     department VARCHAR(100),
     phone VARCHAR(50),
     join_date VARCHAR(50),
@@ -189,6 +203,7 @@ CREATE TABLE IF NOT EXISTS order_bookings (
     balance_due DECIMAL(10, 2) DEFAULT 0.00,
     status VARCHAR(50) DEFAULT 'In Production',
     assigned_master VARCHAR(150),
+    assigned_employees JSON,
     special_instructions TEXT,
     measurement_id VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -260,6 +275,29 @@ ALTER TABLE product_stages
     ADD COLUMN IF NOT EXISTS booking_id VARCHAR(50) NULL,
     ADD INDEX IF NOT EXISTS idx_product_stages_booking_id (booking_id);
 
+ALTER TABLE order_bookings
+    ADD COLUMN IF NOT EXISTS assigned_employees JSON;
+
+-- Production work is payable per employee only after the product reaches delivery-ready status.
+CREATE TABLE IF NOT EXISTS production_jobs (
+    id VARCHAR(50) PRIMARY KEY,
+    stage_id VARCHAR(50) NOT NULL,
+    employee_id VARCHAR(50),
+    employee_name VARCHAR(150) NOT NULL,
+    project_name VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    agreed_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'IN_PROGRESS',
+    ready_at DATETIME NULL,
+    paid_at DATETIME NULL,
+    payment_method VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_production_jobs_stage (stage_id),
+    INDEX idx_production_jobs_employee (employee_id),
+    CONSTRAINT fk_production_jobs_stage FOREIGN KEY (stage_id) REFERENCES product_stages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_production_jobs_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
 -- =================================================================
 -- SEED INITIAL DATA
 -- =================================================================
@@ -274,12 +312,13 @@ VALUES
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 -- Seed Customers
-INSERT INTO customers (id, name, phone, email, city, gstin, credit_limit, balance)
+INSERT INTO customers (id, name, phone, email, city, gstin, credit_limit, balance, buyer_type, customer_segment)
 VALUES
-('CUST-01', 'Rajesh Singhania', '9820112345', 'rajesh.singhania@apexcorp.in', 'Mumbai', '27AABCU9603R1ZM', 50000.00, 4200.00),
-('CUST-02', 'Aditya Birla', '9811223344', 'aditya.b@outlook.com', 'New Delhi', '', 25000.00, 0.00),
-('CUST-03', 'Kavita Krishnamurthy', '9845012398', 'kavita.k@gmail.com', 'Bangalore', '', 15000.00, 1500.00),
-('CUST-04', 'Ananya Deshmukh', '9769011223', 'ananya.d@studioart.org', 'Pune', '27BBRPM4421P1Z5', 30000.00, 0.00)
+('CUST-01', 'Rajesh Singhania', '9820112345', 'rajesh.singhania@apexcorp.in', 'Mumbai', '27AABCU9603R1ZM', 50000.00, 4200.00, 'finished_product', 'retail'),
+('CUST-02', 'Aditya Birla', '9811223344', 'aditya.b@outlook.com', 'New Delhi', '', 25000.00, 0.00, 'both', 'family'),
+('CUST-03', 'Kavita Krishnamurthy', '9845012398', 'kavita.k@gmail.com', 'Bangalore', '', 15000.00, 1500.00, 'finished_product', 'retail'),
+('CUST-04', 'Greenfield Academy Procurement', '9876544001', 'procurement@greenfieldacademy.edu', 'Pune', '27GREENFIELD01', 25000.00, 6400.00, 'raw_material', 'wholesale'),
+('CUST-05', 'Meera Kapoor Family Account', '9811122334', 'meera.kapoor@example.com', 'Mumbai', '', 5000.00, 0.00, 'raw_material', 'family')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 -- Seed Products
@@ -290,8 +329,15 @@ VALUES
 ('PRD-103', 'TC-SHIRT-001', '890123456003', 'Egyptian Giza Cotton Formal Shirt', 'Shirts', 'ThreadCraft Luxe', '100% Giza Long-Staple Cotton', 1100.00, 3499.00, 4299.00, 42, 10, '["39", "40", "42", "44"]', '["Crisp White", "Powder Blue", "Ecru"]', 'Contemporary Fit', 12.00, '6205', '👕'),
 ('PRD-104', 'TC-SHIRT-002', '890123456004', 'Linen Blend French Cuff Spread Collar', 'Shirts', 'ThreadCraft Luxe', '60% Linen, 40% Cotton', 950.00, 2899.00, 3499.00, 28, 8, '["38", "40", "42"]', '["Sky Blue", "Pastel Pink", "Beige"]', 'Slim Fit', 12.00, '6205', '👔'),
 ('PRD-105', 'TC-ETHNIC-001', '890123456005', 'Raw Silk Zari Embroidered Sherwani', 'Ethnic & Ceremonial', 'Rajwada Couture', 'Pure Banarasi Raw Silk', 18500.00, 42000.00, 49999.00, 6, 2, '["40", "42", "44"]', '["Antique Ivory", "Champagne Gold"]', 'Royal Cut', 12.00, '6203', '👑'),
-('PRD-106', 'TC-TROUSER-001', '890123456006', 'Gurkha Pleated Flannel Trousers', 'Trousers', 'ThreadCraft Heritage', 'Super 120s Wool Flannel', 1800.00, 4999.00, 5999.00, 22, 6, '["30", "32", "34", "36"]', '["Olive Green", "Charcoal", "Tobacco Tan"]', 'High-Rise Relaxed', 12.00, '6204', '👖')
+('PRD-106', 'TC-TROUSER-001', '890123456006', 'Gurkha Pleated Flannel Trousers', 'Trousers', 'ThreadCraft Heritage', 'Super 120s Wool Flannel', 1800.00, 4999.00, 5999.00, 22, 6, '["30", "32", "34", "36"]', '["Olive Green", "Charcoal", "Tobacco Tan"]', 'High-Rise Relaxed', 12.00, '6204', '👖'),
+('PRD-108', 'FAB-WOOL-108', '890123456008', 'Italian Super 140s Merino Wool (Per Meter)', 'Raw Materials', 'Biella Woolen Imports', 'Super 140s Merino Wool', 45.00, 68.00, 75.00, 120, 20, '["Standard Width 60\\\""]', '["Midnight Blue", "Charcoal Grey", "Jet Black"]', 'Unstitched Roll', 5.00, '5112', '🧶'),
+('PRD-109', 'FAB-SILK-109', '890123456009', 'Banarasi Raw Silk Zari Base (Per Meter)', 'Raw Materials', 'Zari Heritage Banaras', 'Pure Mulberry Raw Silk', 32.00, 52.00, 60.00, 85, 15, '["Standard Width 44\\\""]', '["Antique Ivory", "Maroon", "Royal Emerald"]', 'Unstitched Roll', 5.00, '5007', '🪡'),
+('PRD-110', 'TRIM-CANVAS-110', '890123456010', 'Bespoke Horsehair Canvas and Shoulder Pad Set', 'Threads & Trims', 'Oritex Threads & Trims', 'Horsehair Canvas', 7.00, 12.00, 15.00, 240, 40, '["38-44"]', '["Natural", "Black"]', 'Suit Construction Trim', 12.00, '5903', '🧵'),
+('PRD-111', 'LIN-COT-111', '890123456011', 'Premium Cotton Shirt Lining (Per Meter)', 'Lining', 'Vardhman Mills', 'Breathable Cotton Voile', 3.20, 6.50, 8.00, 400, 60, '["Standard Width 44\\\""]', '["White", "Sky Blue", "Black"]', 'Garment Lining', 5.00, '5516', '🧵')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
+
+UPDATE products SET unit = 'Meter' WHERE id IN ('PRD-108', 'PRD-109', 'PRD-111');
+UPDATE products SET unit = 'Set' WHERE id = 'PRD-110';
 
 -- Seed Vendors
 INSERT INTO vendors (id, name, category, contact_person, phone, email, city, rating, balance_due)

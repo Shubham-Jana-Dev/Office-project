@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { Modal } from '../common/Modal';
 import { CustomerModal } from '../common/CustomerModal';
 import { CustomerProfileModal } from '../customer/CustomerProfileModal';
+import { SearchableSelect } from '../common/SearchableSelect';
+import { NewEmployeeModal } from '../employee/NewEmployeeModal';
 import {
   Banknote,
   CreditCard,
@@ -25,6 +27,7 @@ export const CheckoutModal = ({
   discountTotal,
   tax,
   grandTotal,
+  saleType = 'finished_product',
   onSuccessOrder,
 }) => {
   const { customers, completeSale, currency, employees } = useApp();
@@ -37,6 +40,9 @@ export const CheckoutModal = ({
   const [selectedCashier, setSelectedCashier] = useState('David Miller (Sales Executive)');
   const [isNewCustModalOpen, setIsNewCustModalOpen] = useState(false);
   const [is360ProfileOpen, setIs360ProfileOpen] = useState(false);
+  const [isNewEmployeeModalOpen, setIsNewEmployeeModalOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newEmployeeName, setNewEmployeeName] = useState('');
 
   const selectedCustObj = customers.find((c) => c.id === selectedCustomerId);
 
@@ -73,10 +79,12 @@ export const CheckoutModal = ({
       tax,
       total: grandTotal,
       paymentMethod,
+      customerId: selectedCustomerId || null,
       customerName,
       customerPhone,
       cashier: selectedCashier,
       profit: orderProfit,
+      saleType,
     };
 
     const newOrder = await completeSale(salePayload);
@@ -152,22 +160,24 @@ export const CheckoutModal = ({
 
           <div style={{ display: 'grid', gridTemplateColumns: selectedCustomerId ? '1fr auto' : '1fr 1fr', gap: '10px' }}>
             <div>
-              <select
-                className="form-select"
+              <SearchableSelect
                 value={selectedCustomerId}
-                onChange={(e) => {
-                  setSelectedCustomerId(e.target.value);
+                onChange={(customerId) => {
+                  setSelectedCustomerId(customerId);
                   setCustomCustomerName('');
                   setCustomCustomerPhone('');
                 }}
-              >
-                <option value="">-- Select Saved Customer / VIP --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.type} • {c.phone})
-                  </option>
-                ))}
-              </select>
+                options={customers.map((customer) => ({
+                  value: customer.id,
+                  label: `${customer.name} (${customer.type} - ${customer.phone})`,
+                }))}
+                placeholder="Search saved customer or VIP..."
+                addNewLabel="Add new customer"
+                onAddNew={(name) => {
+                  setNewCustomerName(name);
+                  setIsNewCustModalOpen(true);
+                }}
+              />
             </div>
 
             {selectedCustomerId && selectedCustObj && (
@@ -206,17 +216,20 @@ export const CheckoutModal = ({
         {/* Cashier Selection */}
         <div>
           <label className="form-label">Sales Cashier / Staff</label>
-          <select
-            className="form-select"
+          <SearchableSelect
             value={selectedCashier}
-            onChange={(e) => setSelectedCashier(e.target.value)}
-          >
-            {employees.map((emp) => (
-              <option key={emp.id} value={`${emp.name} (${emp.role})`}>
-                {emp.name} - {emp.role}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedCashier}
+            options={employees.map((employee) => ({
+              value: `${employee.name} (${employee.role})`,
+              label: `${employee.name} - ${employee.role}`,
+            }))}
+            placeholder="Search cashier or staff name..."
+            addNewLabel="Add new employee"
+            onAddNew={(name) => {
+              setNewEmployeeName(name);
+              setIsNewEmployeeModalOpen(true);
+            }}
+          />
         </div>
 
         {/* Payment Methods Tabs */}
@@ -368,9 +381,17 @@ export const CheckoutModal = ({
       <CustomerModal
         isOpen={isNewCustModalOpen}
         onClose={() => setIsNewCustModalOpen(false)}
+        initialName={newCustomerName}
         onCustomerCreated={(newCust) => {
           setSelectedCustomerId(newCust.id);
         }}
+      />
+
+      <NewEmployeeModal
+        isOpen={isNewEmployeeModalOpen}
+        onClose={() => setIsNewEmployeeModalOpen(false)}
+        initialName={newEmployeeName}
+        onEmployeeCreated={(employee) => setSelectedCashier(`${employee.name} (${employee.role})`)}
       />
 
       {/* Customer 360 Profile & Sizing Hub Modal */}
