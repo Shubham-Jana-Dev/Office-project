@@ -71,10 +71,26 @@ export const Sidebar = () => {
       subtitle: 'Attendance, Advance & Piece-Rate',
       icon: Users,
     },
+    {
+      id: 'super_admin',
+      label: 'Super Admin',
+      subtitle: 'Products, Raw Materials & Pay Rules',
+      icon: ShieldCheck,
+      badge: 'Restricted',
+      badgeColor: 'badge-warning',
+    },
   ];
 
   const accessibleNavItems = navItems.filter((item) => {
-    if (!currentUser || !currentUser.permissions) return true;
+    if (!currentUser) return false;
+    if (item.id === 'super_admin') {
+      return (
+        currentUser.roleKey === 'super_admin' ||
+        currentUser.roleKey === 'admin' ||
+        (currentUser.permissions && currentUser.permissions.includes('super_admin'))
+      );
+    }
+    if (!currentUser.permissions) return true;
     return currentUser.permissions.includes(item.id);
   });
 

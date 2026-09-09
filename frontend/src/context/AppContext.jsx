@@ -41,6 +41,9 @@ export const AppProvider = ({ children }) => {
   const [vendors, setVendors] = useState([]);
 
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [rawMaterialLots, setRawMaterialLots] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rawMaterialLots') || '[]'); } catch { return []; }
+  });
 
   const [customers, setCustomers] = useState([]);
 
@@ -294,8 +297,9 @@ export const AppProvider = ({ children }) => {
       discountTotal: saleData.discountTotal,
       tax: saleData.tax,
       total: saleData.total,
+      advance: saleData.amountPaid !== undefined ? saleData.amountPaid : saleData.total,
       paymentMethod: saleData.paymentMethod, // 'cash' | 'card' | 'upi' | 'split'
-      paymentStatus: 'Paid',
+      paymentStatus: (saleData.amountPaid !== undefined && saleData.amountPaid < saleData.total) ? 'Partial' : 'Paid',
       cashier: saleData.cashier || (currentUser ? `${currentUser.name} (${currentUser.role})` : 'David Miller (Sales Executive)'),
       profit: saleData.profit,
     };
@@ -349,6 +353,10 @@ export const AppProvider = ({ children }) => {
       total: poData.total,
       paidAmount: Number(poData.paidAmount) || 0,
       notes: poData.notes || 'Standard inward delivery purchase order',
+      supplierInvoiceNo: poData.supplierInvoiceNo || '',
+      supplierInvoiceDate: poData.supplierInvoiceDate || '',
+      supplierInvoiceFile: poData.supplierInvoiceFile || '',
+      supplierInvoiceName: poData.supplierInvoiceName || '',
     };
 
     const savedOrder = await purchasesApi.createOrder(newPO);
@@ -360,6 +368,19 @@ export const AppProvider = ({ children }) => {
     return savedOrder;
   };
 
+  const uploadPOInvoice = async (poId, invoiceData) => {
+    try {
+      const updatedPO = await purchasesApi.uploadInvoice(poId, invoiceData);
+      setPurchaseOrders((prev) =>
+        prev.map((po) => (po.id === poId ? { ...po, ...updatedPO } : po))
+      );
+      showToast(`Supplier invoice updated for PO #${poId}`, 'success');
+      return updatedPO;
+    } catch (err) {
+      showToast(`Failed to upload invoice: ${err.message}`, 'danger');
+    }
+  };
+
   const receiveStockFromPO = async (poId) => {
     const po = purchaseOrders.find((p) => p.id === poId);
     if (!po) return;
@@ -367,6 +388,35 @@ export const AppProvider = ({ children }) => {
     await purchasesApi.receiveOrder(poId);
     setPurchaseOrders(await purchasesApi.getOrders());
     setProducts(await productsApi.getAll());
+
+    // Generate lot codes for each item in the PO and save to localStorage
+    const receiveDate = new Date();
+    const mm = String(receiveDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(receiveDate.getDate()).padStart(2, '0');
+    const newLots = (po.items || []).map((item) => {
+      const prefix = item.name
+        .split(/\s+/)
+        .map((w) => w[0]?.toUpperCase() || '')
+        .join('')
+        .slice(0, 3);
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      const lotCode = `${prefix}-${Math.round(item.unitPrice)}-${mm}-${dd}-${rand}`;
+      return {
+        lotCode,
+        itemName: item.name,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+        purchaseDate: receiveDate.toISOString().split('T')[0],
+        supplierName: po.vendorName,
+        poId: po.id,
+        supplierInvoiceNo: po.supplierInvoiceNo || '',
+      };
+    });
+    setRawMaterialLots((prev) => {
+      const updated = [...newLots, ...prev];
+      localStorage.setItem('rawMaterialLots', JSON.stringify(updated));
+      return updated;
+    });
 
     showToast(`Stock received & inventory updated for PO #${poId}`, 'success');
   };
@@ -389,7 +439,7 @@ export const AppProvider = ({ children }) => {
   const addProduct = async (productData) => {
     const productNumber = products.length + 101;
     const savedProduct = await productsApi.create({
-      id: `PRD-${productNumber}`,
+      id: productData.id || `PRD-${productNumber}`,
       name: productData.name,
       sku: productData.sku || `NEW-${productNumber}`,
       barcode: productData.barcode || `890100${productNumber}`,
@@ -398,14 +448,30 @@ export const AppProvider = ({ children }) => {
       costPrice: Number(productData.costPrice) || 0,
       mrp: Number(productData.mrp) || Number(productData.price) || 0,
       stock: Number(productData.stock) || 0,
-      minStock: 5,
-      sizes: [],
-      colors: [],
-      image: '👔',
+      unit: productData.unit || 'Piece',
+      minStock: productData.minStock || 5,
+      sizes: productData.sizes || [],
+      colors: productData.colors || [],
+      image: productData.image || '👔',
     });
     setProducts((prev) => [savedProduct, ...prev]);
     showToast(`Product ${savedProduct.name} added!`, 'success');
     return savedProduct;
+  };
+
+  const createProduct = addProduct;
+
+  const updateProduct = async (productId, data) => {
+    const updated = await productsApi.update(productId, data);
+    setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
+    showToast(`Product ${updated.name || productId} updated`, 'info');
+    return updated;
+  };
+
+  const deleteProduct = async (productId) => {
+    await productsApi.delete(productId);
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    showToast('Product deleted successfully', 'info');
   };
 
   const deleteVendor = async (vendorId) => {
@@ -461,7 +527,7 @@ export const AppProvider = ({ children }) => {
       garmentType: batchData.garmentType,
       clientName: batchData.clientName || 'Showroom Lot',
       quantity: Number(batchData.quantity) || 1,
-      currentStage: batchData.currentStage || 'Fabric Sourcing & Inward',
+      currentStage: batchData.currentStage || 'Cutting stage',
       assignedTo: batchData.assignedTo || 'Unassigned',
       employees: batchData.employees || [],
       startDate: batchData.startDate || new Date().toISOString().split('T')[0],
@@ -472,7 +538,7 @@ export const AppProvider = ({ children }) => {
       notes: batchData.notes || '',
       history: [
         {
-          stage: batchData.currentStage || 'Fabric Sourcing & Inward',
+          stage: batchData.currentStage || 'Cutting stage',
           date: new Date().toISOString().split('T')[0],
           status: 'Active',
           by: batchData.assignedTo || 'Supervisor',
@@ -497,7 +563,7 @@ export const AppProvider = ({ children }) => {
         {
           stage: nextStageName,
           date: new Date().toISOString().split('T')[0],
-          status: nextStageName === 'Showroom / Ready Stock' ? 'Completed' : 'Active',
+          status: nextStageName === 'Ready to Delivery stage' ? 'Completed' : 'Active',
           by: 'Department Master',
         },
       ],
@@ -505,7 +571,7 @@ export const AppProvider = ({ children }) => {
     setProductStages((prev) => prev.map((item) => item.id === batchId ? savedBatch : item));
     setProductionJobs(await ledgerApi.getProductionJobs('all'));
     if (batch.bookingId) {
-      const status = nextStageName.includes('Trial') ? 'Ready for Trial' : nextStageName.includes('Ready') ? 'Ready for Delivery' : 'In Production';
+      const status = nextStageName.includes('Ready') ? 'Ready for Delivery' : 'In Production';
       const savedBooking = await api.patch(`/bookings/${batch.bookingId}`, { status });
       setOrderBookings((prev) => prev.map((item) => item.id === batch.bookingId ? savedBooking : item));
     }
@@ -641,8 +707,8 @@ export const AppProvider = ({ children }) => {
     showToast('Salary details updated successfully!', 'success');
   };
 
-  const grantEmployeeAdvanceLoan = async (empId, loanAmount, monthlyDeduction) => {
-    const savedEmployee = await employeesApi.grantAdvanceLoan(empId, loanAmount, monthlyDeduction);
+  const grantEmployeeAdvanceLoan = async (empId, loanAmount) => {
+    const savedEmployee = await employeesApi.grantAdvanceLoan(empId, loanAmount);
     setEmployees((prev) => prev.map((emp) => emp.id === empId || emp.empId === empId ? savedEmployee : emp));
 
     // Ledger entry for employee advance payout
@@ -653,14 +719,36 @@ export const AppProvider = ({ children }) => {
       partyType: 'Expense',
       partyName: `Staff Advance: ${empObj?.name || 'Employee'}`,
       type: 'Debit',
-      description: `Advance Loan Disbursed ($${loanAmount})`,
+      description: `Advance Loan Disbursed (₹${loanAmount})`,
       amount: Number(loanAmount),
       balance: Number(loanAmount),
       refNo: `ADV-${empId}`,
     };
     setLedgerEntries(await ledgerApi.getAll());
 
-    showToast(`Advance loan of $${loanAmount} approved and logged!`, 'success');
+    showToast(`Advance loan of ₹${loanAmount} approved and logged!`, 'success');
+  };
+
+  const repayEmployeeAdvanceLoan = async (empId, amount) => {
+    const savedEmployee = await employeesApi.repayAdvanceLoan(empId, amount);
+    setEmployees((prev) => prev.map((emp) => emp.id === empId || emp.empId === empId ? savedEmployee : emp));
+    
+    // Ledger entry for employee advance repayment
+    const empObj = employees.find((e) => e.id === empId || e.empId === empId);
+    const newLedger = {
+      id: generateId('LED'),
+      date: new Date().toISOString().split('T')[0],
+      partyType: 'Income',
+      partyName: `Staff Advance Repayment: ${empObj?.name || 'Employee'}`,
+      type: 'Credit',
+      description: `Advance Loan Repaid (₹${amount})`,
+      amount: Number(amount),
+      balance: Number(amount),
+      refNo: `ADV-REP-${empId}`,
+    };
+    setLedgerEntries(await ledgerApi.getAll());
+    
+    showToast(`Advance loan repayment of ₹${amount} logged!`, 'success');
   };
 
   const logDailyAttendance = async (attendanceRecord) => {
@@ -731,8 +819,45 @@ export const AppProvider = ({ children }) => {
     return response;
   };
 
+  const markPresent = async (attId, dateStr, empObj) => {
+    if (attId) {
+      return updateAttendanceRecord(attId, { action: 'markPresent' });
+    } else if (empObj) {
+      const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      return logDailyAttendance({
+        empId: empObj.empId || empObj.id,
+        empName: empObj.name,
+        date: dateStr || new Date().toISOString().split('T')[0],
+        status: 'Present',
+        inTime: nowStr,
+        outTime: '',
+        otHours: 0,
+        notes: '',
+      });
+    }
+  };
+
+  const markAbsent = async (attId, dateStr, empObj) => {
+    if (attId) {
+      return updateAttendanceRecord(attId, { action: 'markAbsent' });
+    } else if (empObj) {
+      return logDailyAttendance({
+        empId: empObj.empId || empObj.id,
+        empName: empObj.name,
+        date: dateStr || new Date().toISOString().split('T')[0],
+        status: 'Absent',
+        inTime: '',
+        outTime: '',
+        otHours: 0,
+        notes: '',
+      });
+    }
+  };
+
   const checkInAttendance = (attId) => updateAttendanceRecord(attId, { action: 'checkIn' });
   const checkOutAttendance = (attId) => updateAttendanceRecord(attId, { action: 'checkOut' });
+  const reStampInAttendance = (attId) => updateAttendanceRecord(attId, { action: 'reStampIn' });
+  const reStampOutAttendance = (attId) => updateAttendanceRecord(attId, { action: 'reStampOut' });
 
   const addLedgerVoucher = async (voucher) => {
     const newVoucher = {
@@ -796,6 +921,7 @@ export const AppProvider = ({ children }) => {
         setVendors,
         purchaseOrders,
         setPurchaseOrders,
+        rawMaterialLots,
         customers,
         setCustomers,
         addCustomer,
@@ -834,11 +960,15 @@ export const AppProvider = ({ children }) => {
         settleWorkPayment,
         settleEmployeeProductionBalance,
 
-        // Purchase
+        // Purchase & Products
         createPurchaseOrder,
+        uploadPOInvoice,
         receiveStockFromPO,
         addVendor,
         addProduct,
+        createProduct,
+        updateProduct,
+        deleteProduct,
         deleteVendor,
 
         // Stages
@@ -857,10 +987,15 @@ export const AppProvider = ({ children }) => {
         updateEmployee,
         updateEmployeeSalary,
         grantEmployeeAdvanceLoan,
+        repayEmployeeAdvanceLoan,
         logDailyAttendance,
         updateAttendanceRecord,
+        markPresent,
+        markAbsent,
         checkInAttendance,
         checkOutAttendance,
+        reStampInAttendance,
+        reStampOutAttendance,
         completeAssignedJob,
         addLedgerVoucher,
 

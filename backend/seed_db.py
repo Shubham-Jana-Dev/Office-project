@@ -114,6 +114,8 @@ def seed_database():
                     fit=p.get('fit'),
                     tax_rate=p.get('taxRate', 12.0),
                     hsn=p.get('hsn'),
+                    assigned_employee=p.get('assignedEmployee', 'Not Assigned'),
+                    base_incentive=p.get('baseIncentive', 0.0),
                     image=p.get('image', '👔'),
                 )
                 db.session.add(product)

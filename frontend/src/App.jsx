@@ -4,13 +4,13 @@ import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { LoginView } from './components/auth/LoginView';
 import { POSView } from './components/pos/POSView';
-import { PurchaseView } from './components/purchase/PurchaseView';
 import { ProfitView } from './components/profit/ProfitView';
 import { LedgerView } from './components/ledger/LedgerView';
 import { StagesView } from './components/stages/StagesView';
 import { MeasurementView } from './components/measurement/MeasurementView';
 import { BookingView } from './components/booking/BookingView';
 import { EmployeeView } from './components/employee/EmployeeView';
+import { SuperAdminView } from './components/superadmin/SuperAdminView';
 import { BarcodeScannerModal } from './components/pos/BarcodeScannerModal';
 import { CheckCircle2, AlertCircle, Info, ShieldAlert } from 'lucide-react';
 import './styles/index.css';
@@ -45,9 +45,12 @@ export function App() {
   }
 
   // Check Role-Based Access Control permissions
-  const isAllowed = !currentUser.permissions || currentUser.permissions.includes(activeTab);
+  const isAllowed =
+    !currentUser.permissions ||
+    currentUser.permissions.includes(activeTab) ||
+    (activeTab === 'super_admin' && (currentUser.roleKey === 'super_admin' || currentUser.roleKey === 'admin'));
 
-  // Render Active Section hello i am new.
+  // Render Active Section
   const renderActiveView = () => {
     if (!isAllowed) {
       return (
@@ -69,8 +72,6 @@ export function App() {
     switch (activeTab) {
       case 'pos':
         return <POSView />;
-      case 'purchase':
-        return <PurchaseView />;
       case 'profit':
         return <ProfitView />;
       case 'ledger':
@@ -83,6 +84,8 @@ export function App() {
         return <BookingView />;
       case 'employee':
         return <EmployeeView />;
+      case 'super_admin':
+        return <SuperAdminView />;
       default:
         return <POSView />;
     }

@@ -11,18 +11,26 @@ import {
   AlertCircle,
   Search,
   Trash2,
+  Download,
+  FileText,
+  Tag,
+  Archive,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { exportPurchaseOrderPDF } from '../../utils/pdfGenerator';
 import { NewPOModal } from './NewPOModal';
 import { VendorModal } from './VendorModal';
+import { POInvoiceModal } from './POInvoiceModal';
 import { StatCard } from '../common/StatCard';
 
 export const PurchaseView = () => {
-  const { purchaseOrders, vendors, receiveStockFromPO, deleteVendor, currency } = useApp();
-  const [activeTab, setActiveTab] = useState('pos'); // 'pos' or 'vendors'
+  const { purchaseOrders, vendors, receiveStockFromPO, deleteVendor, currency, rawMaterialLots } = useApp();
+  const [activeTab, setActiveTab] = useState('pos'); // 'pos', 'vendors', 'lots'
   const [isNewPOOpen, setIsNewPOOpen] = useState(false);
   const [isVendorOpen, setIsVendorOpen] = useState(false);
+  const [selectedPOForInvoice, setSelectedPOForInvoice] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lotSearch, setLotSearch] = useState('');
 
   const totalPayables = vendors.reduce((acc, v) => acc + (v.balancePayable || 0), 0);
   const pendingOrders = purchaseOrders.filter((po) => po.status === 'Ordered').length;
@@ -31,7 +39,8 @@ export const PurchaseView = () => {
   const filteredPOs = purchaseOrders.filter(
     (po) =>
       po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      po.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
+      po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (po.supplierInvoiceNo && po.supplierInvoiceNo.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -41,7 +50,7 @@ export const PurchaseView = () => {
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Purchase Orders & Sourcing</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Manage raw fabric rolls, accessories procurement, textile mills, and auto stock replenishment
+            Manage raw fabric rolls, accessories procurement, textile mills, and supplier invoice records
           </p>
         </div>
         <div className="responsive-header-actions" style={{ display: 'flex', gap: '10px' }}>
@@ -94,6 +103,12 @@ export const PurchaseView = () => {
             <Truck size={14} /> Purchase Orders ({purchaseOrders.length})
           </button>
           <button
+            className={`btn ${activeTab === 'lots' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            onClick={() => setActiveTab('lots')}
+          >
+            <Archive size={14} /> Raw Material Lots ({rawMaterialLots.length})
+          </button>
+          <button
             className={`btn ${activeTab === 'vendors' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
             onClick={() => setActiveTab('vendors')}
           >
@@ -107,7 +122,7 @@ export const PurchaseView = () => {
             type="text"
             className="form-input"
             style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
-            placeholder="Search PO / Supplier..."
+            placeholder="Search PO / Supplier / Invoice..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -115,8 +130,93 @@ export const PurchaseView = () => {
       </div>
 
       {/* Main Content Area */}
-      {activeTab === 'pos' ? (
+      {activeTab === 'lots' && (
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Archive size={20} color="var(--primary-color)" /> Raw Material Inventory Lot Ledger
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
+                Each received batch is assigned a unique lot code: <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>PREFIX-Price-Month-Day-Random</code>. Example: <strong>CP-150-09-09-4521</strong> = Cotton Print received on Sept 9 at ₹150/unit.
+              </p>
+            </div>
+            <div style={{ position: 'relative', minWidth: '220px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: '32px', fontSize: '0.85rem' }}
+                placeholder="Search lot code, material, supplier..."
+                value={lotSearch}
+                onChange={(e) => setLotSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {rawMaterialLots.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>
+              <Archive size={48} style={{ opacity: 0.25, marginBottom: '12px' }} />
+              <p style={{ fontWeight: 700 }}>No lot records yet.</p>
+              <p style={{ fontSize: '0.85rem' }}>Lot codes are auto-generated when you click <strong>"Receive Goods"</strong> on a Purchase Order.</p>
+            </div>
+          ) : (
+            <div className="table-responsive products-table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Lot Code</th>
+                    <th>Material Name</th>
+                    <th>Qty Received</th>
+                    <th>Unit Price (₹)</th>
+                    <th>Purchase Date</th>
+                    <th>Supplier / Mill</th>
+                    <th>PO Reference</th>
+                    <th>Invoice No.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rawMaterialLots
+                    .filter((lot) =>
+                      !lotSearch ||
+                      lot.lotCode.toLowerCase().includes(lotSearch.toLowerCase()) ||
+                      lot.itemName.toLowerCase().includes(lotSearch.toLowerCase()) ||
+                      lot.supplierName.toLowerCase().includes(lotSearch.toLowerCase())
+                    )
+                    .map((lot, idx) => (
+                      <tr key={`${lot.lotCode}-${idx}`}>
+                        <td data-label="Lot Code">
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '0.85rem', background: '#eef2ff', color: '#4338ca', padding: '3px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                            <Tag size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                            {lot.lotCode}
+                          </span>
+                        </td>
+                        <td data-label="Material">{lot.itemName}</td>
+                        <td data-label="Qty">{lot.qty} units</td>
+                        <td data-label="Unit Price" style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                          ₹{Number(lot.unitPrice).toFixed(2)}
+                        </td>
+                        <td data-label="Purchase Date">{lot.purchaseDate}</td>
+                        <td data-label="Supplier">{lot.supplierName}</td>
+                        <td data-label="PO Ref" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {lot.poId}
+                        </td>
+                        <td data-label="Invoice No." style={{ fontSize: '0.8rem' }}>
+                          {lot.supplierInvoiceNo || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'pos' && (
         <>
+
           {/* Desktop Table View */}
           <div className="table-responsive card desktop-only-table">
             <table className="data-table">
@@ -128,7 +228,7 @@ export const PurchaseView = () => {
                   <th>Expected Date</th>
                   <th>Line Items</th>
                   <th>Total Value</th>
-                  <th>Payment Status</th>
+                  <th>Supplier Invoice</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -170,17 +270,28 @@ export const PurchaseView = () => {
                         </div>
                       </td>
                       <td>
-                        <span
-                          className={`badge ${
-                            po.paymentStatus === 'Paid'
-                              ? 'badge-success'
-                              : po.paymentStatus === 'Partial Paid'
-                              ? 'badge-warning'
-                              : 'badge-danger'
-                          }`}
-                        >
-                          {po.paymentStatus}
-                        </span>
+                        {po.supplierInvoiceNo || po.supplierInvoiceFile ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34D399', fontFamily: 'var(--font-mono)' }}>
+                              {po.supplierInvoiceNo || 'Invoice Attached'}
+                            </span>
+                            <button
+                              className="btn btn-outline btn-sm"
+                              onClick={() => setSelectedPOForInvoice(po)}
+                              title="View / Download Supplier Invoice"
+                            >
+                              <FileText size={14} /> View Invoice
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setSelectedPOForInvoice(po)}
+                            title="Attach Supplier Invoice"
+                          >
+                            <Plus size={14} /> Add Invoice
+                          </button>
+                        )}
                       </td>
                       <td>
                         <span
@@ -196,19 +307,28 @@ export const PurchaseView = () => {
                         </span>
                       </td>
                       <td>
-                        {po.status !== 'Completed' ? (
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                           <button
-                            className="btn btn-success btn-sm"
-                            onClick={() => receiveStockFromPO(po.id)}
-                            title="Verify delivery, add to inventory stock & record goods inward"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => exportPurchaseOrderPDF(po)}
+                            title="Download Raw Material Purchase Bill (PDF)"
                           >
-                            <PackageCheck size={14} /> Receive Goods
+                            <Download size={14} /> PDF Bill
                           </button>
-                        ) : (
-                          <span style={{ fontSize: '0.75rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle size={14} /> Stock Inwarded
-                          </span>
-                        )}
+                          {po.status !== 'Completed' ? (
+                            <button
+                              className="btn btn-success btn-sm"
+                              onClick={() => receiveStockFromPO(po.id)}
+                              title="Verify delivery, add to inventory stock & record goods inward"
+                            >
+                              <PackageCheck size={14} /> Receive Goods
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle size={14} /> Inwarded
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -279,19 +399,34 @@ export const PurchaseView = () => {
                     <div>
                       Paid: <strong style={{ color: '#10B981' }}>{formatCurrency(po.paidAmount || 0, currency)}</strong>
                     </div>
+                    <div style={{ marginTop: '4px' }}>
+                      Supplier Invoice: {' '}
+                      {po.supplierInvoiceNo ? (
+                        <span style={{ color: '#34D399', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{po.supplierInvoiceNo}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Not attached</span>
+                      )}
+                    </div>
                   </div>
 
-                  {po.status !== 'Completed' && (
-                    <div style={{ marginTop: '2px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      style={{ flex: 1 }}
+                      onClick={() => setSelectedPOForInvoice(po)}
+                    >
+                      <FileText size={14} /> {po.supplierInvoiceNo || po.supplierInvoiceFile ? 'View Invoice' : 'Add Invoice'}
+                    </button>
+                    {po.status !== 'Completed' && (
                       <button
                         className="btn btn-success btn-sm"
-                        style={{ width: '100%' }}
+                        style={{ flex: 1 }}
                         onClick={() => receiveStockFromPO(po.id)}
                       >
-                        <PackageCheck size={14} /> Receive Goods Inward
+                        <PackageCheck size={14} /> Receive Goods
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Dashed Separator */}
                   <div className="mobile-card-divider" />
@@ -308,7 +443,9 @@ export const PurchaseView = () => {
             )}
           </div>
         </>
-      ) : (
+      )}
+
+      {activeTab === 'vendors' && (
         /* Vendors Directory Grid */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
           {vendors.map((v) => (
@@ -363,6 +500,12 @@ export const PurchaseView = () => {
       {/* Modals */}
       <NewPOModal isOpen={isNewPOOpen} onClose={() => setIsNewPOOpen(false)} />
       <VendorModal isOpen={isVendorOpen} onClose={() => setIsVendorOpen(false)} />
+      <POInvoiceModal
+        isOpen={Boolean(selectedPOForInvoice)}
+        onClose={() => setSelectedPOForInvoice(null)}
+        po={selectedPOForInvoice}
+      />
     </div>
   );
 };
+

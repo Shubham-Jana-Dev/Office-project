@@ -20,6 +20,13 @@ import {
   Gift,
   LogIn,
   LogOut,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  BarChart2,
+  List,
+  RefreshCw,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { exportSalarySlipPDF } from '../../utils/pdfGenerator';
@@ -39,8 +46,13 @@ export const EmployeeView = () => {
     currency,
     updateEmployeeSalary,
     updateAttendanceRecord,
+    markPresent,
+    markAbsent,
     checkInAttendance,
     checkOutAttendance,
+    reStampInAttendance,
+    reStampOutAttendance,
+    logDailyAttendance,
     completeAssignedJob,
     workPayments,
     productionJobs,
@@ -60,6 +72,145 @@ export const EmployeeView = () => {
 
   // Selected Month for Payroll
   const [payrollMonth, setPayrollMonth] = useState('September 2026');
+
+  // Attendance Module State & Filtering
+  const [timeHorizon, setTimeHorizon] = useState('daily'); // 'daily', 'monthly', 'yearly'
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedEmpFilter, setSelectedEmpFilter] = useState('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
+  const [attendanceViewMode, setAttendanceViewMode] = useState('detailed'); // 'detailed', 'rollup'
+
+  // Daily Navigation Handlers
+  const handlePrevDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
+
+  // Build attendance logs for display (ensuring daily view includes active employees)
+  const getAttendanceForDisplay = () => {
+    let records = [];
+
+    if (timeHorizon === 'daily') {
+      records = employees.map((emp) => {
+        const existing = (attendance || []).find(
+          (a) => a.date === selectedDate && (a.empId === emp.empId || a.empId === emp.id || a.empName === emp.name)
+        );
+        if (existing) {
+          return existing;
+        }
+        return {
+          id: null,
+          empId: emp.empId || emp.id,
+          empName: emp.name,
+          date: selectedDate,
+          status: 'Not Marked',
+          inTime: '',
+          outTime: '',
+          otHours: 0,
+          notes: '',
+          empObj: emp,
+        };
+      });
+    } else if (timeHorizon === 'monthly') {
+      records = (attendance || []).filter((a) => a.date && a.date.startsWith(selectedMonth));
+    } else if (timeHorizon === 'yearly') {
+      records = (attendance || []).filter((a) => a.date && a.date.startsWith(selectedYear));
+    }
+
+    if (selectedEmpFilter !== 'ALL') {
+      records = records.filter(
+        (r) => r.empId === selectedEmpFilter || r.empName === selectedEmpFilter
+      );
+    }
+
+    if (selectedStatusFilter !== 'ALL') {
+      records = records.filter((r) => r.status === selectedStatusFilter);
+    }
+
+    return records;
+  };
+
+  const displayedAttendance = getAttendanceForDisplay();
+
+  // Dynamic KPI Banner Summaries
+  const attTotalLogs = displayedAttendance.length;
+  const attPresentCount = displayedAttendance.filter((r) => r.status === 'Present').length;
+  const attAbsentCount = displayedAttendance.filter((r) => r.status === 'Absent').length;
+  const attRate = attTotalLogs > 0 ? Math.round((attPresentCount / attTotalLogs) * 100) : 0;
+  const attTotalOt = displayedAttendance.reduce((sum, r) => sum + (Number(r.otHours) || 0), 0);
+
+  // Rollup Aggregation per Employee for Monthly / Yearly mode
+  const employeeRollup = employees.map((emp) => {
+    const empLogs = (attendance || []).filter((a) => {
+      const matchEmp = a.empId === emp.empId || a.empId === emp.id || a.empName === emp.name;
+      if (!matchEmp) return false;
+      if (timeHorizon === 'monthly') return a.date && a.date.startsWith(selectedMonth);
+      if (timeHorizon === 'yearly') return a.date && a.date.startsWith(selectedYear);
+      return true;
+    });
+
+    const presentDays = empLogs.filter((a) => a.status === 'Present').length;
+    const halfDays = empLogs.filter((a) => a.status === 'Half Day').length;
+    const absentDays = empLogs.filter((a) => a.status === 'Absent').length;
+    const effectivePresent = presentDays + halfDays * 0.5;
+    const totalShifts = empLogs.length;
+    const rate = totalShifts > 0 ? Math.round((effectivePresent / totalShifts) * 100) : 100;
+    const otHours = empLogs.reduce((sum, a) => sum + (Number(a.otHours) || 0), 0);
+
+    return {
+      empId: emp.empId || emp.id,
+      empName: emp.name,
+      role: emp.role,
+      totalShifts,
+      presentDays,
+      halfDays,
+      absentDays,
+      rate,
+      otHours,
+    };
+  });
+
+  // Export CSV with UTF-8 BOM (\uFEFF)
+  const handleExportCSV = () => {
+    let csvContent = '\uFEFF';
+    let filename = '';
+
+    if (attendanceViewMode === 'rollup' && timeHorizon !== 'daily') {
+      filename = `attendance_summary_${timeHorizon}_${timeHorizon === 'monthly' ? selectedMonth : selectedYear}.csv`;
+      csvContent += 'Employee ID,Employee Name,Role,Total Shifts,Present Days,Half Days,Absent Days,Attendance Rate (%),Total OT Hours\n';
+      employeeRollup.forEach((row) => {
+        csvContent += `"${row.empId}","${row.empName}","${row.role}",${row.totalShifts},${row.presentDays},${row.halfDays},${row.absentDays},${row.rate}%,${row.otHours}\n`;
+      });
+    } else {
+      filename = `attendance_detailed_${timeHorizon}_${selectedDate}.csv`;
+      csvContent += 'Date,Employee ID,Employee Name,Status,Clock-In,Clock-Out,Overtime (OT Hours),Shift Notes\n';
+      displayedAttendance.forEach((row) => {
+        csvContent += `"${row.date}","${row.empId}","${row.empName}","${row.status}","${row.inTime || ''}","${row.outTime || ''}",${row.otHours || 0},"${(row.notes || '').replace(/"/g, '""')}"\n`;
+      });
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Compute stats
   const totalEmployees = employees.length;
@@ -223,12 +374,7 @@ export const EmployeeView = () => {
         >
           <DollarSign size={14} /> Performance & Piece-Rate Salary Engine
         </button>
-        <button
-          className={`btn ${subTab === 'payments' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-          onClick={() => setSubTab('payments')}
-        >
-          <Wallet size={14} /> Ready Employee Payments ({workPayments.length})
-        </button>
+
         <button
           className={`btn ${subTab === 'profiles' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
           onClick={() => setSubTab('profiles')}
@@ -865,171 +1011,604 @@ export const EmployeeView = () => {
       )}
 
       {/* ----------------------------------------------------
-          SUB-TAB 3: Daily Attendance Logs with Inline Status (P/A/H/L) & Times
+          SUB-TAB 3: Attendance Management & History Dashboard
       ---------------------------------------------------- */}
       {subTab === 'attendance' && (
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={18} color="#F59E0B" />
-                Daily Attendance Logs & Clock-In/Out
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                ✨ <strong>Quick 1-Click Controls:</strong> Click <strong>P</strong> (Present), <strong>A</strong> (Absent), <strong>H</strong> (Half Day), or <strong>L</strong> (Leave) to toggle status directly. Use Check In and Check Out to record the current time automatically.
-              </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Header Controls & Period Filtering Bar */}
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            {/* Top Bar: Title & Primary Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={20} color="#F59E0B" />
+                  Attendance Management & Shift History
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                  Track punches, mark quick P/A statuses, manage OT, and export UTF-8 BOM CSV reports.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {timeHorizon !== 'daily' && (
+                  <div style={{ display: 'inline-flex', background: 'var(--bg-surface-elevated)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
+                    <button
+                      className={`btn ${attendanceViewMode === 'detailed' ? 'btn-primary' : 'btn-secondary'} btn-xs`}
+                      onClick={() => setAttendanceViewMode('detailed')}
+                    >
+                      <List size={12} /> Detailed Logs
+                    </button>
+                    <button
+                      className={`btn ${attendanceViewMode === 'rollup' ? 'btn-primary' : 'btn-secondary'} btn-xs`}
+                      onClick={() => setAttendanceViewMode('rollup')}
+                    >
+                      <BarChart2 size={12} /> Employee Rollup
+                    </button>
+                  </div>
+                )}
+
+                <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
+                  <Download size={14} /> Export CSV
+                </button>
+
+                <button className="btn btn-primary btn-sm" onClick={() => setIsAttendanceOpen(true)}>
+                  <Plus size={14} /> Manual Clock Punch
+                </button>
+              </div>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => setIsAttendanceOpen(true)}>
-              <Plus size={14} /> New Clock Punch
-            </button>
+
+            {/* Filter Toolbar Grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid var(--border)',
+              }}
+            >
+              {/* Time Horizon Segmented Control */}
+              <div>
+                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Time Horizon</label>
+                <div style={{ display: 'flex', background: 'var(--bg-surface-elevated)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
+                  <button
+                    style={{ flex: 1, padding: '6px', fontSize: '0.8rem', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: timeHorizon === 'daily' ? 'var(--primary)' : 'transparent', color: timeHorizon === 'daily' ? '#fff' : 'var(--text-muted)' }}
+                    onClick={() => setTimeHorizon('daily')}
+                  >
+                    📅 Daily
+                  </button>
+                  <button
+                    style={{ flex: 1, padding: '6px', fontSize: '0.8rem', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: timeHorizon === 'monthly' ? 'var(--primary)' : 'transparent', color: timeHorizon === 'monthly' ? '#fff' : 'var(--text-muted)' }}
+                    onClick={() => setTimeHorizon('monthly')}
+                  >
+                    🗓️ Monthly
+                  </button>
+                  <button
+                    style={{ flex: 1, padding: '6px', fontSize: '0.8rem', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: timeHorizon === 'yearly' ? 'var(--primary)' : 'transparent', color: timeHorizon === 'yearly' ? '#fff' : 'var(--text-muted)' }}
+                    onClick={() => setTimeHorizon('yearly')}
+                  >
+                    📆 Yearly
+                  </button>
+                </div>
+              </div>
+
+              {/* Period Picker depending on Time Horizon */}
+              {timeHorizon === 'daily' && (
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Select Date & Jump</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={handlePrevDay} title="Previous Day">
+                      <ChevronLeft size={14} />
+                    </button>
+                    <input
+                      type="date"
+                      className="form-input"
+                      style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                    />
+                    <button className="btn btn-secondary btn-sm" onClick={handleNextDay} title="Next Day">
+                      <ChevronRight size={14} />
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={handleToday} title="Jump to Today">
+                      Today
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {timeHorizon === 'monthly' && (
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Select Month</label>
+                  <input
+                    type="month"
+                    className="form-input"
+                    style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {timeHorizon === 'yearly' && (
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Select Year</label>
+                  <select
+                    className="form-input"
+                    style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                  >
+                    {['2026', '2025', '2024'].map((yr) => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Employee Filter */}
+              <div>
+                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Filter Employee</label>
+                <select
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                  value={selectedEmpFilter}
+                  onChange={(e) => setSelectedEmpFilter(e.target.value)}
+                >
+                  <option value="ALL">All Employees</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.empId || emp.id}>{emp.name} ({emp.empId})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Filter Status</label>
+                <select
+                  className="form-input"
+                  style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                  value={selectedStatusFilter}
+                  onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="Present">Present Only</option>
+                  <option value="Absent">Absent Only</option>
+                  <option value="Half Day">Half Day Only</option>
+                  <option value="Leave">Leave Only</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Desktop Table View */}
-          <div className="table-responsive desktop-only-table">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Employee Name</th>
-                  <th style={{ minWidth: '220px' }}>Status Quick Selector (P / A / H / L)</th>
-                  <th style={{ minWidth: '150px' }}>Clock-In</th>
-                  <th style={{ minWidth: '150px' }}>Clock-Out</th>
-                  <th style={{ minWidth: '110px' }}>Overtime (OT)</th>
-                  <th style={{ minWidth: '180px' }}>Shift Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.map((att) => (
-                  <tr key={att.id}>
-                    {/* Date */}
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className="font-mono" style={{ fontSize: '0.85rem' }}>{formatDate(att.date)}</span>
-                    </td>
+          {/* Dynamic KPI Summary Banner */}
+          <div
+            className="stats-grid"
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '16px 20px',
+              gap: '14px',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Total Logs Recorded</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                {attTotalLogs} Entries
+              </div>
+            </div>
 
-                    {/* Employee */}
-                    <td>
-                      <div style={{ fontWeight: 700 }}>{att.empName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{att.empId}</div>
-                    </td>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Total Present Days</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#34D399', fontFamily: 'var(--font-mono)' }}>
+                {attPresentCount} Days
+              </div>
+            </div>
 
-                    {/* Quick P / A / H / L Segmented Toggle Buttons */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            background: 'var(--bg-surface-elevated)',
-                            borderRadius: '8px',
-                            padding: '3px',
-                            border: '1px solid var(--border)',
-                            gap: '3px',
-                          }}
-                        >
-                          {/* P - Present */}
-                          <button
-                            type="button"
-                            onClick={() => updateAttendanceRecord(att.id, { status: 'Present' })}
-                            title="P: Mark Present (Full Day)"
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              border: 'none',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s',
-                              background: att.status === 'Present' ? '#10B981' : 'transparent',
-                              color: att.status === 'Present' ? '#FFFFFF' : 'var(--text-muted)',
-                              boxShadow: att.status === 'Present' ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'none',
-                            }}
-                          >
-                            P
-                          </button>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Total Absent Days</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FB7185', fontFamily: 'var(--font-mono)' }}>
+                {attAbsentCount} Days
+              </div>
+            </div>
 
-                          {/* A - Absent */}
-                          <button
-                            type="button"
-                            onClick={() => updateAttendanceRecord(att.id, { status: 'Absent' })}
-                            title="A: Mark Absent (Unpaid Day / Deduction)"
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              border: 'none',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s',
-                              background: att.status === 'Absent' ? '#F43F5E' : 'transparent',
-                              color: att.status === 'Absent' ? '#FFFFFF' : 'var(--text-muted)',
-                              boxShadow: att.status === 'Absent' ? '0 2px 8px rgba(244, 63, 94, 0.4)' : 'none',
-                            }}
-                          >
-                            A
-                          </button>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Attendance Rate</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: attRate >= 85 ? '#34D399' : '#F59E0B', fontFamily: 'var(--font-mono)' }}>
+                {attRate}%
+              </div>
+            </div>
 
-                          {/* H - Half Day */}
-                          <button
-                            type="button"
-                            onClick={() => updateAttendanceRecord(att.id, { status: 'Half Day' })}
-                            title="H: Mark Half Day"
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              border: 'none',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s',
-                              background: att.status === 'Half Day' ? '#F59E0B' : 'transparent',
-                              color: att.status === 'Half Day' ? '#FFFFFF' : 'var(--text-muted)',
-                              boxShadow: att.status === 'Half Day' ? '0 2px 8px rgba(245, 158, 11, 0.4)' : 'none',
-                            }}
-                          >
-                            H
-                          </button>
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Total Overtime (OT)</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#F59E0B', fontFamily: 'var(--font-mono)' }}>
+                +{attTotalOt.toFixed(1)} hrs
+              </div>
+            </div>
+          </div>
 
-                          {/* L - Leave */}
-                          <button
-                            type="button"
-                            onClick={() => updateAttendanceRecord(att.id, { status: 'Leave' })}
-                            title="L: Mark Approved Leave"
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              border: 'none',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s',
-                              background: att.status === 'Leave' ? '#8B5CF6' : 'transparent',
-                              color: att.status === 'Leave' ? '#FFFFFF' : 'var(--text-muted)',
-                              boxShadow: att.status === 'Leave' ? '0 2px 8px rgba(139, 92, 246, 0.4)' : 'none',
-                            }}
-                          >
-                            L
-                          </button>
+          {/* Rollup Summary View (When in Rollup Mode) */}
+          {attendanceViewMode === 'rollup' && timeHorizon !== 'daily' ? (
+            <div className="card table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee ID</th>
+                    <th>Employee Name</th>
+                    <th>Role</th>
+                    <th>Logged Shifts</th>
+                    <th>Present Days</th>
+                    <th>Absent Days</th>
+                    <th style={{ minWidth: '180px' }}>Attendance Rate</th>
+                    <th>Total OT Accum.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeeRollup.map((row) => (
+                    <tr key={row.empId}>
+                      <td><span className="font-mono" style={{ fontWeight: 700 }}>{row.empId}</span></td>
+                      <td><strong style={{ fontSize: '0.9rem' }}>{row.empName}</strong></td>
+                      <td><span className="badge badge-secondary">{row.role}</span></td>
+                      <td>{row.totalShifts}</td>
+                      <td><span style={{ color: '#34D399', fontWeight: 700 }}>{row.presentDays}</span></td>
+                      <td><span style={{ color: '#FB7185', fontWeight: 700 }}>{row.absentDays}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ flex: 1, height: '8px', background: 'var(--bg-surface-elevated)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                width: `${row.rate}%`,
+                                height: '100%',
+                                background: row.rate >= 85 ? '#10B981' : row.rate >= 70 ? '#F59E0B' : '#F43F5E',
+                                borderRadius: '4px',
+                                transition: 'width 0.3s ease',
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 800, fontFamily: 'var(--font-mono)', minWidth: '40px' }}>{row.rate}%</span>
                         </div>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 800, color: row.otHours > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
+                          +{row.otHours.toFixed(1)} hrs
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Detailed Daily Logs Table */
+            <div className="card">
+              <div className="table-responsive desktop-only-table">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Employee Name</th>
+                      <th style={{ minWidth: '220px' }}>Status Quick Selector (P / A / H / L)</th>
+                      <th style={{ minWidth: '160px' }}>Clock-In</th>
+                      <th style={{ minWidth: '160px' }}>Clock-Out</th>
+                      <th style={{ minWidth: '110px' }}>Overtime (OT)</th>
+                      <th style={{ minWidth: '180px' }}>Shift Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedAttendance.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                          No attendance logs found matching the selected filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      displayedAttendance.map((att, idx) => {
+                        const rowEmp = att.empObj || employees.find((e) => e.empId === att.empId || e.id === att.empId || e.name === att.empName);
+                        return (
+                          <tr key={att.id || `virtual-${idx}`}>
+                            {/* Date */}
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              <span className="font-mono" style={{ fontSize: '0.85rem' }}>{formatDate(att.date)}</span>
+                            </td>
 
+                            {/* Employee */}
+                            <td>
+                              <div style={{ fontWeight: 700 }}>{att.empName}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{att.empId}</div>
+                            </td>
+
+                            {/* Quick P / A / H / L Segmented Toggle Buttons */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div
+                                  style={{
+                                    display: 'inline-flex',
+                                    background: 'var(--bg-surface-elevated)',
+                                    borderRadius: '8px',
+                                    padding: '3px',
+                                    border: '1px solid var(--border)',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  {/* P - Present */}
+                                  <button
+                                    type="button"
+                                    onClick={() => markPresent(att.id, att.date, rowEmp)}
+                                    title="P: Mark Present (Full Day)"
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      fontWeight: 800,
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s',
+                                      background: att.status === 'Present' ? '#10B981' : 'transparent',
+                                      color: att.status === 'Present' ? '#FFFFFF' : 'var(--text-muted)',
+                                      boxShadow: att.status === 'Present' ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'none',
+                                    }}
+                                  >
+                                    P
+                                  </button>
+
+                                  {/* A - Absent */}
+                                  <button
+                                    type="button"
+                                    onClick={() => markAbsent(att.id, att.date, rowEmp)}
+                                    title="A: Mark Absent (Unpaid Day)"
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      fontWeight: 800,
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s',
+                                      background: att.status === 'Absent' ? '#F43F5E' : 'transparent',
+                                      color: att.status === 'Absent' ? '#FFFFFF' : 'var(--text-muted)',
+                                      boxShadow: att.status === 'Absent' ? '0 2px 8px rgba(244, 63, 94, 0.4)' : 'none',
+                                    }}
+                                  >
+                                    A
+                                  </button>
+
+                                  {/* H - Half Day */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (att.id) updateAttendanceRecord(att.id, { status: 'Half Day' });
+                                      else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, status: 'Half Day' });
+                                    }}
+                                    title="H: Mark Half Day"
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      fontWeight: 800,
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s',
+                                      background: att.status === 'Half Day' ? '#F59E0B' : 'transparent',
+                                      color: att.status === 'Half Day' ? '#FFFFFF' : 'var(--text-muted)',
+                                      boxShadow: att.status === 'Half Day' ? '0 2px 8px rgba(245, 158, 11, 0.4)' : 'none',
+                                    }}
+                                  >
+                                    H
+                                  </button>
+
+                                  {/* L - Leave */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (att.id) updateAttendanceRecord(att.id, { status: 'Leave' });
+                                      else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, status: 'Leave' });
+                                    }}
+                                    title="L: Mark Approved Leave"
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      fontWeight: 800,
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s',
+                                      background: att.status === 'Leave' ? '#8B5CF6' : 'transparent',
+                                      color: att.status === 'Leave' ? '#FFFFFF' : 'var(--text-muted)',
+                                      boxShadow: att.status === 'Leave' ? '0 2px 8px rgba(139, 92, 246, 0.4)' : 'none',
+                                    }}
+                                  >
+                                    L
+                                  </button>
+                                </div>
+
+                                <span
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    color:
+                                      att.status === 'Present'
+                                        ? '#34D399'
+                                        : att.status === 'Absent'
+                                        ? '#FB7185'
+                                        : att.status === 'Half Day'
+                                        ? '#FBBF24'
+                                        : att.status === 'Leave'
+                                        ? '#A78BFA'
+                                        : 'var(--text-dim)',
+                                  }}
+                                >
+                                  {att.status}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Clock-In Time (Directly Editable Input + Now Button) */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="text"
+                                  className="form-input font-mono"
+                                  style={{ width: '105px', padding: '4px 6px', fontSize: '0.8rem' }}
+                                  placeholder="09:00 AM"
+                                  value={att.status === 'Absent' ? '— Absent —' : (att.inTime || '')}
+                                  disabled={att.status === 'Absent'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (att.id) updateAttendanceRecord(att.id, { inTime: val, status: att.status === 'Absent' ? 'Present' : att.status });
+                                    else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, inTime: val, status: 'Present' });
+                                  }}
+                                  title="Edit Clock-In time directly"
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-xs"
+                                  style={{ padding: '3px 6px', fontSize: '0.7rem' }}
+                                  onClick={() => {
+                                    const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                    if (att.id) updateAttendanceRecord(att.id, { inTime: nowStr, status: att.status === 'Absent' ? 'Present' : att.status });
+                                    else markPresent(null, att.date, rowEmp);
+                                  }}
+                                  title="Set to current time"
+                                >
+                                  Now
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Clock-Out Time (Directly Editable Input + Now Button) */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="text"
+                                  className="form-input font-mono"
+                                  style={{ width: '105px', padding: '4px 6px', fontSize: '0.8rem' }}
+                                  placeholder="06:00 PM"
+                                  value={att.status === 'Absent' ? '— Absent —' : (att.outTime || '')}
+                                  disabled={att.status === 'Absent'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (att.id) updateAttendanceRecord(att.id, { outTime: val });
+                                    else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, outTime: val, status: 'Present' });
+                                  }}
+                                  title="Edit Clock-Out time directly"
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-xs"
+                                  style={{ padding: '3px 6px', fontSize: '0.7rem' }}
+                                  onClick={() => {
+                                    const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                    if (att.id) updateAttendanceRecord(att.id, { outTime: nowStr });
+                                    else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, outTime: nowStr, status: 'Present' });
+                                  }}
+                                  title="Set to current time"
+                                >
+                                  Now
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Overtime Hours (Direct Editable) */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontSize: '0.8rem', color: att.otHours > 0 ? '#F59E0B' : 'var(--text-dim)', fontWeight: 700 }}>+</span>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="form-input font-mono"
+                                  style={{
+                                    width: '56px',
+                                    padding: '4px 6px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    color: att.otHours > 0 ? '#F59E0B' : 'var(--text-main)',
+                                  }}
+                                  value={att.otHours !== undefined ? att.otHours : 0}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value) || 0;
+                                    if (att.id) updateAttendanceRecord(att.id, { otHours: val });
+                                    else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, otHours: val });
+                                  }}
+                                  title="Edit Overtime Hours directly"
+                                />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>hrs</span>
+                              </div>
+                            </td>
+
+                            {/* Shift Notes (Direct Editable) */}
+                            <td>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ width: '100%', minWidth: '150px', padding: '4px 8px', fontSize: '0.8rem' }}
+                                placeholder="Shift notes / reasons..."
+                                value={att.notes || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (att.id) updateAttendanceRecord(att.id, { notes: val });
+                                  else logDailyAttendance({ empId: att.empId, empName: att.empName, date: att.date, notes: val });
+                                }}
+                                title="Edit Shift Notes directly"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Responsive Cards Format */}
+              <div className="mobile-only-cards" style={{ marginTop: '12px' }}>
+                {displayedAttendance.map((att, idx) => {
+                  const rowEmp = att.empObj || employees.find((e) => e.empId === att.empId || e.id === att.empId || e.name === att.empName);
+                  return (
+                    <div key={att.id || `mobile-${idx}`} className="mobile-data-card">
+                      <div className="mobile-card-top">
+                        <div className="mobile-card-badge-group">
+                          <div className="mobile-card-icon-box">
+                            <Clock size={18} color="#F59E0B" />
+                          </div>
+                          <span className="badge badge-primary font-mono">{formatDate(att.date)}</span>
+                        </div>
                         <span
+                          className="badge"
                           style={{
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
+                            background:
+                              att.status === 'Present'
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : att.status === 'Absent'
+                                ? 'rgba(244, 63, 94, 0.15)'
+                                : att.status === 'Half Day'
+                                ? 'rgba(245, 158, 11, 0.15)'
+                                : 'rgba(139, 92, 246, 0.15)',
                             color:
                               att.status === 'Present'
                                 ? '#34D399'
@@ -1038,218 +1617,55 @@ export const EmployeeView = () => {
                                 : att.status === 'Half Day'
                                 ? '#FBBF24'
                                 : '#A78BFA',
+                            fontWeight: 700,
                           }}
                         >
                           {att.status}
                         </span>
                       </div>
-                    </td>
 
-                    {/* Clock-In Time */}
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
-                        <span className="font-mono" style={{ fontSize: '0.8rem', color: att.inTime ? 'var(--text-main)' : 'var(--text-dim)' }}>
-                          {att.inTime || 'Not checked in'}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-success btn-sm"
-                          onClick={() => checkInAttendance(att.id)}
-                          disabled={Boolean(att.inTime)}
-                          title="Record the current check-in time"
-                        >
-                          <LogIn size={13} /> Check In
-                        </button>
+                      <div>
+                        <h3 className="mobile-card-title">{att.empName}</h3>
+                        <div className="mobile-card-subtitle">Employee ID: {att.empId}</div>
                       </div>
-                    </td>
 
-                    {/* Clock-Out Time */}
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
-                        <span className="font-mono" style={{ fontSize: '0.8rem', color: att.outTime ? 'var(--text-main)' : 'var(--text-dim)' }}>
-                          {att.outTime || 'Not checked out'}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => checkOutAttendance(att.id)}
-                          disabled={!att.inTime || Boolean(att.outTime)}
-                          title="Record the current check-out time"
-                        >
-                          <LogOut size={13} /> Check Out
-                        </button>
+                      {/* Quick P / A / H / L Buttons for Mobile */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-surface-elevated)', padding: '6px 10px', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Status:</span>
+                        <div style={{ display: 'inline-flex', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => markPresent(att.id, att.date, rowEmp)}
+                            style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', background: att.status === 'Present' ? '#10B981' : 'transparent', color: att.status === 'Present' ? '#FFF' : 'var(--text-muted)' }}
+                          >
+                            P
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => markAbsent(att.id, att.date, rowEmp)}
+                            style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', background: att.status === 'Absent' ? '#F43F5E' : 'transparent', color: att.status === 'Absent' ? '#FFF' : 'var(--text-muted)' }}
+                          >
+                            A
+                          </button>
+                        </div>
                       </div>
-                    </td>
 
-                    {/* Overtime Hours (Direct Editable) */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '0.8rem', color: att.otHours > 0 ? '#F59E0B' : 'var(--text-dim)', fontWeight: 700 }}>+</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className="form-input font-mono"
-                          style={{
-                            width: '56px',
-                            padding: '4px 6px',
-                            fontSize: '0.85rem',
-                            fontWeight: 700,
-                            color: att.otHours > 0 ? '#F59E0B' : 'var(--text-main)',
-                          }}
-                          value={att.otHours !== undefined ? att.otHours : 0}
-                          onChange={(e) => updateAttendanceRecord(att.id, { otHours: Number(e.target.value) || 0 })}
-                          title="Edit Overtime Hours directly"
-                        />
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>hrs</span>
+                      <div className="mobile-card-details">
+                        <div className="mobile-card-details-row">
+                          <span>Clock-In:</span>
+                          <span className="font-mono" style={{ fontWeight: 600 }}>{att.status === 'Absent' ? '— Absent —' : (att.inTime || 'Not checked in')}</span>
+                        </div>
+                        <div className="mobile-card-details-row">
+                          <span>Clock-Out:</span>
+                          <span className="font-mono" style={{ fontWeight: 600 }}>{att.status === 'Absent' ? '— Absent —' : (att.outTime || 'Not checked out')}</span>
+                        </div>
                       </div>
-                    </td>
-
-                    {/* Shift Notes (Direct Editable) */}
-                    <td>
-                      <input
-                        type="text"
-                        className="form-input"
-                        style={{ width: '100%', minWidth: '150px', padding: '4px 8px', fontSize: '0.8rem' }}
-                        placeholder="Shift notes..."
-                        value={att.notes || ''}
-                        onChange={(e) => updateAttendanceRecord(att.id, { notes: e.target.value })}
-                        title="Edit Shift Notes directly"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Responsive Cards Format */}
-          <div className="mobile-only-cards" style={{ marginTop: '12px' }}>
-            {attendance.map((att) => (
-              <div key={att.id} className="mobile-data-card">
-                {/* Top Row: Icon + Date Badge (Left) and Status (Right) */}
-                <div className="mobile-card-top">
-                  <div className="mobile-card-badge-group">
-                    <div className="mobile-card-icon-box">
-                      <Clock size={18} color="#F59E0B" />
                     </div>
-                    <span className="badge badge-primary font-mono">{formatDate(att.date)}</span>
-                  </div>
-                  <span
-                    className="badge"
-                    style={{
-                      background:
-                        att.status === 'Present'
-                          ? 'rgba(16, 185, 129, 0.15)'
-                          : att.status === 'Absent'
-                          ? 'rgba(244, 63, 94, 0.15)'
-                          : att.status === 'Half Day'
-                          ? 'rgba(245, 158, 11, 0.15)'
-                          : 'rgba(139, 92, 246, 0.15)',
-                      color:
-                        att.status === 'Present'
-                          ? '#34D399'
-                          : att.status === 'Absent'
-                          ? '#FB7185'
-                          : att.status === 'Half Day'
-                          ? '#FBBF24'
-                          : '#A78BFA',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {att.status}
-                  </span>
-                </div>
-
-                {/* Title & Subtitle */}
-                <div>
-                  <h3 className="mobile-card-title">{att.empName}</h3>
-                  <div className="mobile-card-subtitle">
-                    Employee ID: {att.empId}
-                  </div>
-                </div>
-
-                {/* Quick P / A / H / L Selector for Mobile */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-surface-elevated)', padding: '6px 10px', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick Status:</span>
-                  <div style={{ display: 'inline-flex', gap: '4px' }}>
-                    {['Present', 'Absent', 'Half Day', 'Leave'].map((st) => {
-                      const letter = st === 'Present' ? 'P' : st === 'Absent' ? 'A' : st === 'Half Day' ? 'H' : 'L';
-                      const isSel = att.status === st;
-                      const bg = st === 'Present' ? '#10B981' : st === 'Absent' ? '#F43F5E' : st === 'Half Day' ? '#F59E0B' : '#8B5CF6';
-                      return (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => updateAttendanceRecord(att.id, { status: st })}
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            fontWeight: 800,
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: isSel ? bg : 'transparent',
-                            color: isSel ? '#FFFFFF' : 'var(--text-muted)',
-                            boxShadow: isSel ? `0 2px 6px ${bg}66` : 'none',
-                          }}
-                        >
-                          {letter}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Details: Clock In, Clock Out, Notes */}
-                <div className="mobile-card-details">
-                  <div className="mobile-card-details-row">
-                    <span>Clock-In:</span>
-                    <span className="font-mono" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                      {att.inTime || 'Not checked in'}
-                    </span>
-                  </div>
-                  <div className="mobile-card-details-row">
-                    <span>Clock-Out:</span>
-                    <span className="font-mono" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                      {att.outTime || 'Not checked out'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    <button type="button" className="btn btn-success btn-sm" onClick={() => checkInAttendance(att.id)} disabled={Boolean(att.inTime)}>
-                      <LogIn size={13} /> Check In
-                    </button>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => checkOutAttendance(att.id)} disabled={!att.inTime || Boolean(att.outTime)}>
-                      <LogOut size={13} /> Check Out
-                    </button>
-                  </div>
-                  {att.notes && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontStyle: 'italic', marginTop: '2px' }}>
-                      Note: {att.notes}
-                    </div>
-                  )}
-                </div>
-
-                {/* Dashed Separator */}
-                <div className="mobile-card-divider" />
-
-                {/* Footer Row */}
-                <div className="mobile-card-footer">
-                  <span className="mobile-card-footer-label">Overtime Logged:</span>
-                  <span
-                    className="mobile-card-footer-value"
-                    style={{ color: att.otHours > 0 ? '#F59E0B' : 'var(--text-muted)' }}
-                  >
-                    {att.otHours || 0} hrs
-                  </span>
-                </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1305,26 +1721,6 @@ export const EmployeeView = () => {
         </div>
       )}
 
-      {subTab === 'payments' && (
-        <div className="card table-responsive">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title"><Wallet size={18} color="#10B981" /> Ready for Delivery Employee Dues</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>Only production work attached to delivery-ready products appears here.</p>
-            </div>
-          </div>
-          {workPayments.length === 0 ? <p style={{ color: 'var(--text-dim)', padding: '20px' }}>No unsettled production payments.</p> : (
-            <table className="data-table">
-              <thead><tr><th>Employee</th><th>Project</th><th>Quantity</th><th>Due</th><th>Ready Since</th><th>Action</th></tr></thead>
-              <tbody>{workPayments.map((job) => <tr key={job.id}>
-                <td><strong>{job.employeeName}</strong></td><td>{job.projectName}</td><td>{job.quantity}</td>
-                <td style={{ color: '#F59E0B', fontWeight: 800 }}>{formatCurrency(job.agreedAmount, currency)}</td><td>{job.readyAt || '-'}</td>
-                <td><button className="btn btn-success btn-sm" onClick={() => settleWorkPayment(job.id)}><CheckCircle2 size={13} /> Settle Payment</button></td>
-              </tr>)}</tbody>
-            </table>
-          )}
-        </div>
-      )}
 
       {/* Modals */}
       <NewEmployeeModal isOpen={isNewEmpOpen} onClose={() => setIsNewEmpOpen(false)} />

@@ -29,6 +29,34 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [newGarmentName, setNewGarmentName] = useState('');
+  const [selectedWorks, setSelectedWorks] = useState([]);
+  const [customIncentives, setCustomIncentives] = useState({});
+
+  const WORK_TYPES = [
+    'Ari', 'Salma', 'Chumki', 'Gujrati', 'Ripu', 'P. Ko', 
+    'Falls', 'Polish', 'Fabrick', 'Khatha', 'Embrodory', 'Dry'
+  ];
+
+  const getDefaultIncentive = (employee) => {
+    if (employee?.pieceRatePerItem && employee.pieceRatePerItem[garmentType] !== undefined) {
+      return Number(employee.pieceRatePerItem[garmentType]);
+    }
+    const matchedProduct = products.find((p) => p.name === garmentType);
+    if (matchedProduct?.baseIncentive !== undefined) {
+      return Number(matchedProduct.baseIncentive);
+    }
+    const gLower = (garmentType || '').toLowerCase();
+    if (gLower.includes('suit')) return 500;
+    if (gLower.includes('sherwani')) return 400;
+    return 200;
+  };
+
+  const getIncentiveForEmployee = (employee) => {
+    if (customIncentives[employee.id] !== undefined) {
+      return customIncentives[employee.id];
+    }
+    return getDefaultIncentive(employee);
+  };
 
   const productionEmployees = employees.filter((employee) => {
     if ((employee.status || 'Active').toLowerCase() !== 'active') return false;
@@ -64,8 +92,14 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
       deliveryDate: deliveryDate || new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
       totalAmount: Number(totalAmount) || 0,
       advancePaid: Number(advancePaid) || 0,
-      assignedEmployees: assignedEmployees.map((employeeId) => ({ employeeId })),
+      assignedEmployees: activeAssignedEmployees.map((employee) => ({
+        employeeId: employee.id,
+        employeeName: employee.name,
+        role: employee.role,
+        incentiveRate: getIncentiveForEmployee(employee),
+      })),
       specialInstructions,
+      workTypes: selectedWorks,
     });
 
     onClose();
@@ -130,6 +164,29 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
           />
         </div>
 
+        <div>
+          <label className="form-label">Tailoring / Embroidery Works</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', background: 'var(--bg-surface-elevated)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+            {WORK_TYPES.map(work => (
+              <label key={work} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={selectedWorks.includes(work)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedWorks([...selectedWorks, work]);
+                    } else {
+                      setSelectedWorks(selectedWorks.filter(w => w !== work));
+                    }
+                  }}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                {work}
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <div>
             <label className="form-label">Trial Fitting Date</label>
@@ -191,7 +248,7 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
         </div>
 
         <div>
-          <label className="form-label">Assigned Employees</label>
+          <label className="form-label">Assigned Employees & Manufacturing Incentive Rates</label>
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px', background: 'var(--bg-surface-elevated)' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>Active Assigned</div>
             {activeAssignedEmployees.length === 0 ? (
@@ -203,9 +260,29 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
                     <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>{employee.name}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{employee.role}</div>
                   </div>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignedEmployees((previous) => previous.filter((id) => id !== employee.id))} title={`Remove ${employee.name}`} aria-label={`Remove ${employee.name}`}>
-                    <Minus size={14} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#34D399', fontWeight: 700 }}>Incentive: ₹</span>
+                      <input
+                        type="number"
+                        step="10"
+                        min="0"
+                        className="form-input font-mono"
+                        style={{ width: '75px', padding: '2px 6px', fontSize: '0.78rem', fontWeight: 700 }}
+                        value={getIncentiveForEmployee(employee)}
+                        onChange={(e) =>
+                          setCustomIncentives({
+                            ...customIncentives,
+                            [employee.id]: Number(e.target.value) || 0,
+                          })
+                        }
+                        title="Directly edit incentive for this employee"
+                      />
+                    </div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignedEmployees((previous) => previous.filter((id) => id !== employee.id))} title={`Remove ${employee.name}`} aria-label={`Remove ${employee.name}`}>
+                      <Minus size={14} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -235,9 +312,29 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
                     <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>{employee.name}</div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{employee.role}</div>
                   </div>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => setAssignedEmployees((previous) => [...previous, employee.id])} title={`Assign ${employee.name}`} aria-label={`Assign ${employee.name}`}>
-                    <Plus size={14} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#34D399', fontWeight: 700 }}>Incentive: ₹</span>
+                      <input
+                        type="number"
+                        step="10"
+                        min="0"
+                        className="form-input font-mono"
+                        style={{ width: '75px', padding: '2px 6px', fontSize: '0.78rem', fontWeight: 700 }}
+                        value={getIncentiveForEmployee(employee)}
+                        onChange={(e) =>
+                          setCustomIncentives({
+                            ...customIncentives,
+                            [employee.id]: Number(e.target.value) || 0,
+                          })
+                        }
+                        title="Directly edit incentive rate before assigning"
+                      />
+                    </div>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => setAssignedEmployees((previous) => [...previous, employee.id])} title={`Assign ${employee.name}`} aria-label={`Assign ${employee.name}`}>
+                      <Plus size={14} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}

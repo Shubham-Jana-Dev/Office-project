@@ -192,6 +192,10 @@ export const INITIAL_PURCHASE_ORDERS = [
     expectedDate: '2026-09-05',
     status: 'Completed',
     paymentStatus: 'Partial Paid',
+    supplierInvoiceNo: 'INV-VARDH-8921',
+    supplierInvoiceDate: '2026-08-26',
+    supplierInvoiceName: 'Vardhman_Tax_Invoice_8921.pdf',
+    supplierInvoiceFile: '',
     items: [
       { name: 'Premium Oxford Cotton Fabric (Per Meter)', qty: 200, unitPrice: 4.20, total: 840.00 },
       { name: 'Egyptian Giza Shirting Rolls (Meters)', qty: 150, unitPrice: 6.50, total: 975.00 },
@@ -210,6 +214,10 @@ export const INITIAL_PURCHASE_ORDERS = [
     expectedDate: '2026-09-10',
     status: 'Ordered',
     paymentStatus: 'Pending',
+    supplierInvoiceNo: 'INV-BIELLA-3044',
+    supplierInvoiceDate: '2026-08-31',
+    supplierInvoiceName: 'Biella_Woolen_Bill_3044.pdf',
+    supplierInvoiceFile: '',
     items: [
       { name: 'Italian Super 140s Merino Wool (Midnight Blue)', qty: 50, unitPrice: 45.00, total: 2250.00 },
       { name: 'Bespoke Canvas Lining & Shoulder Pads', qty: 100, unitPrice: 3.50, total: 350.00 },
@@ -221,6 +229,7 @@ export const INITIAL_PURCHASE_ORDERS = [
     notes: 'Urgent for Autumn wedding bespoke orders.',
   }
 ];
+
 
 export const INITIAL_CUSTOMERS = [
   {
@@ -382,7 +391,7 @@ export const INITIAL_PRODUCT_STAGES = [
     garmentType: 'Men Italian Bespoke 3-Piece Suit',
     clientName: 'Alexander Wright',
     quantity: 1,
-    currentStage: 'Stitching & Tailoring', // Stage 3 of 7
+    currentStage: 'Stitching stage', // Updated to new stage
     assignedTo: 'Master Harun (Master Tailor)',
     startDate: '2026-08-28',
     targetDate: '2026-09-06',
@@ -391,9 +400,9 @@ export const INITIAL_PRODUCT_STAGES = [
     qcStatus: 'In Progress',
     notes: 'Peak lapel, hand-canvassed chest piece, pick stitching on edges.',
     history: [
-      { stage: 'Fabric Sourcing & Inward', date: '2026-08-28', status: 'Completed', by: 'Warehouse' },
-      { stage: 'Pattern Making & Cutting', date: '2026-08-30', status: 'Completed', by: 'Master Suresh (Cutter)' },
-      { stage: 'Stitching & Tailoring', date: '2026-09-01', status: 'Active', by: 'Master Harun' },
+      { stage: 'Cutting stage', date: '2026-08-28', status: 'Completed', by: 'Warehouse' },
+      { stage: 'Stitching stage', date: '2026-08-30', status: 'Completed', by: 'Master Suresh (Cutter)' },
+      { stage: 'Stitching stage', date: '2026-09-01', status: 'Active', by: 'Master Harun' },
     ]
   },
   {
@@ -402,7 +411,7 @@ export const INITIAL_PRODUCT_STAGES = [
     garmentType: 'Hand Embroidered Silk Sherwani',
     clientName: 'Marcus Vance',
     quantity: 1,
-    currentStage: 'Embroidery & Detailing', // Stage 4 of 7
+    currentStage: 'QC stage', // Updated to new stage
     assignedTo: 'Zari Crafts Unit 2',
     startDate: '2026-08-29',
     targetDate: '2026-09-08',
@@ -411,10 +420,10 @@ export const INITIAL_PRODUCT_STAGES = [
     qcStatus: 'In Progress',
     notes: 'Zardozi work on mandarin collar and cuffs with antique gold thread.',
     history: [
-      { stage: 'Fabric Sourcing & Inward', date: '2026-08-29', status: 'Completed', by: 'Warehouse' },
-      { stage: 'Pattern Making & Cutting', date: '2026-08-31', status: 'Completed', by: 'Master Suresh' },
-      { stage: 'Stitching & Tailoring', date: '2026-09-01', status: 'Completed', by: 'Tailor Farooq' },
-      { stage: 'Embroidery & Detailing', date: '2026-09-02', status: 'Active', by: 'Zari Unit' },
+      { stage: 'Cutting stage', date: '2026-08-29', status: 'Completed', by: 'Warehouse' },
+      { stage: 'Stitching stage', date: '2026-08-31', status: 'Completed', by: 'Master Suresh' },
+      { stage: 'Stitching stage', date: '2026-09-01', status: 'Completed', by: 'Tailor Farooq' },
+      { stage: 'QC stage', date: '2026-09-02', status: 'Active', by: 'Zari Unit' },
     ]
   },
   {
@@ -423,7 +432,7 @@ export const INITIAL_PRODUCT_STAGES = [
     garmentType: 'Formal Oxford Shirts (Retail Batch)',
     clientName: 'Showroom Stock Batch #40',
     quantity: 50,
-    currentStage: 'Quality Check (QC Inspection)', // Stage 6 of 7
+    currentStage: 'QC stage', // Updated to new stage
     assignedTo: 'Fatima Zahra (QC Lead)',
     startDate: '2026-08-24',
     targetDate: '2026-09-03',
@@ -432,23 +441,21 @@ export const INITIAL_PRODUCT_STAGES = [
     qcStatus: 'QC Passed 48/50 (2 minor button rework)',
     notes: 'Lot inspection passed. Ready for steam press and tagging.',
     history: [
-      { stage: 'Fabric Sourcing & Inward', date: '2026-08-24', status: 'Completed', by: 'Warehouse' },
-      { stage: 'Pattern Making & Cutting', date: '2026-08-25', status: 'Completed', by: 'Auto Cutter' },
-      { stage: 'Stitching & Tailoring', date: '2026-08-28', status: 'Completed', by: 'Assembly Line A' },
-      { stage: 'Washing & Finishing', date: '2026-08-31', status: 'Completed', by: 'Finishing Unit' },
-      { stage: 'Quality Check (QC Inspection)', date: '2026-09-02', status: 'Active', by: 'Fatima QC' },
+      { stage: 'Cutting stage', date: '2026-08-24', status: 'Completed', by: 'Warehouse' },
+      { stage: 'Stitching stage', date: '2026-08-25', status: 'Completed', by: 'Auto Cutter' },
+      { stage: 'Stitching stage', date: '2026-08-28', status: 'Completed', by: 'Assembly Line A' },
+      { stage: 'Hemming stage', date: '2026-08-31', status: 'Completed', by: 'Finishing Unit' },
+      { stage: 'QC stage', date: '2026-09-02', status: 'Active', by: 'Fatima QC' },
     ]
   }
 ];
 
 export const STAGES_LIST = [
-  { id: 1, name: 'Fabric Sourcing & Inward', icon: '🧵', color: '#6366F1' },
-  { id: 2, name: 'Pattern Making & Cutting', icon: '✂️', color: '#EC4899' },
-  { id: 3, name: 'Stitching & Tailoring', icon: '🪡', color: '#F59E0B' },
-  { id: 4, name: 'Embroidery & Detailing', icon: '✨', color: '#8B5CF6' },
-  { id: 5, name: 'Washing & Finishing', icon: '💨', color: '#06B6D4' },
-  { id: 6, name: 'Quality Check (QC Inspection)', icon: '🔍', color: '#10B981' },
-  { id: 7, name: 'Showroom / Ready Stock', icon: '🏷️', color: '#22C55E' },
+  { id: 1, name: 'Cutting stage', icon: '✂️', color: '#6366F1' },
+  { id: 2, name: 'Stitching stage', icon: '🪡', color: '#EC4899' },
+  { id: 3, name: 'Hemming stage', icon: '🧵', color: '#F59E0B' },
+  { id: 4, name: 'QC stage', icon: '🔍', color: '#10B981' },
+  { id: 5, name: 'Ready to Delivery stage', icon: '🏷️', color: '#22C55E' },
 ];
 
 export const INITIAL_MEASUREMENTS = [
@@ -671,6 +678,17 @@ export const INITIAL_ATTENDANCE = [
 
 export const INITIAL_USERS = [
   {
+    id: 'USR-00',
+    username: 'superadmin',
+    password: 'password123',
+    name: 'Super Administrator',
+    role: 'Super Admin',
+    roleKey: 'super_admin',
+    avatar: '⚡',
+    email: 'superadmin@threadcraft.com',
+    permissions: ['super_admin', 'pos', 'purchase', 'profit', 'ledger', 'stages', 'measurement', 'booking', 'employee'],
+  },
+  {
     id: 'USR-01',
     username: 'admin',
     password: 'password123',
@@ -679,7 +697,7 @@ export const INITIAL_USERS = [
     roleKey: 'admin',
     avatar: '👑',
     email: 'director@threadcraft.com',
-    permissions: ['pos', 'purchase', 'profit', 'ledger', 'stages', 'measurement', 'booking', 'employee'],
+    permissions: ['super_admin', 'pos', 'purchase', 'profit', 'ledger', 'stages', 'measurement', 'booking', 'employee'],
   },
   {
     id: 'USR-02',

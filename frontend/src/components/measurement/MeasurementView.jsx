@@ -29,22 +29,28 @@ export const MeasurementView = () => {
 
   const selectedCustomerObj = customers.find((c) => c.id === selectedCustId) || customers[0];
 
-  // Form Specs State (in inches)
+  // Form Specs State (matching POS Counter Sizing / Measurements)
   const [specs, setSpecs] = useState({
-    collar: '16.5',
-    chest: '40.5',
-    waist: '34.0',
-    hip: '40.0',
-    shoulder: '18.5',
-    sleeveLength: '25.0',
-    bicep: '14.5',
-    wristCuff: '7.5',
-    shirtLength: '30.0',
-    trouserWaist: '34.0',
-    trouserLength: '41.5',
-    inseam: '32.0',
-    thigh: '23.0',
-    bottomHem: '14.5',
+    length: '',
+    chest: '',
+    waist: '',
+    shoulder: '',
+    sleeve: '',
+    muhuri: '',
+    fNeck: '',
+    bNeck: '',
+    thigh: '',
+    armpit: '',
+    hai: '',
+    hip: '',
+    lining: '',
+    hbl: '',
+    bp: '',
+    demu: '',
+    knee: '',
+    gher: '',
+    side: '',
+    secom: ''
   });
 
   const [fitPreference, setFitPreference] = useState('Slim Tailored Fit');
@@ -112,17 +118,17 @@ export const MeasurementView = () => {
     exportTailorJobCardPDF(dummyBooking, specs);
   };
 
-  // Pins for visual mannequin
+  // Pins for visual mannequin (mapped to POS Counter Sizing keys, neatly spaced to prevent overlap)
   const measurementPins = [
-    { key: 'collar', label: 'Collar', top: '16%', left: '46%' },
-    { key: 'shoulder', label: 'Shoulder', top: '22%', left: '72%' },
-    { key: 'chest', label: 'Chest / Bust', top: '30%', left: '48%' },
-    { key: 'sleeveLength', label: 'Sleeve', top: '38%', left: '84%' },
-    { key: 'waist', label: 'Waist', top: '44%', left: '48%' },
-    { key: 'hip', label: 'Hip', top: '54%', left: '48%' },
-    { key: 'thigh', label: 'Thigh', top: '64%', left: '58%' },
-    { key: 'inseam', label: 'Inseam', top: '74%', left: '52%' },
-    { key: 'bottomHem', label: 'Hem Opening', top: '88%', left: '60%' },
+    { key: 'length', label: 'Length', top: '14%', left: '12%' },
+    { key: 'shoulder', label: 'Shoulder', top: '21%', left: '80%' },
+    { key: 'chest', label: 'Chest', top: '31%', left: '50%' },
+    { key: 'sleeve', label: 'Sleeve', top: '40%', left: '82%' },
+    { key: 'waist', label: 'Waist', top: '48%', left: '50%' },
+    { key: 'hip', label: 'Hip', top: '58%', left: '50%' },
+    { key: 'thigh', label: 'Thigh', top: '68%', left: '72%' },
+    { key: 'knee', label: 'Knee', top: '78%', left: '28%' },
+    { key: 'gher', label: 'Gher', top: '88%', left: '50%' },
   ];
 
   return (
@@ -185,14 +191,18 @@ export const MeasurementView = () => {
                 style={{
                   top: pin.top,
                   left: pin.left,
+                  transform: pin.left === '50%'
+                    ? (activeMeasurementPoint === pin.key ? 'translateX(-50%) scale(1.15)' : 'translateX(-50%)')
+                    : (activeMeasurementPoint === pin.key ? 'scale(1.15)' : 'none'),
                   background: activeMeasurementPoint === pin.key ? '#F59E0B' : 'rgba(99, 102, 241, 0.9)',
                   color: activeMeasurementPoint === pin.key ? '#000' : '#FFF',
-                  transform: activeMeasurementPoint === pin.key ? 'scale(1.2)' : 'none',
+                  whiteSpace: 'nowrap',
+                  zIndex: 3
                 }}
                 onMouseEnter={() => setActiveMeasurementPoint(pin.key)}
                 onMouseLeave={() => setActiveMeasurementPoint(null)}
               >
-                {pin.label}: {specs[pin.key] || '—'}"
+                {pin.label}: {specs[pin.key] || '—'}&quot;
               </div>
             ))}
           </div>
@@ -252,20 +262,28 @@ export const MeasurementView = () => {
               </div>
             </div>
 
-            {/* Upper Body Specs */}
+            {/* Upper Body Specs (Matching POS Sizing Specs) */}
             <div>
               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Upper Body Specifications
+                Upper Body Specifications (Inches)
               </span>
-              <div className="specs-input-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginTop: '8px' }}>
+              <div className="specs-input-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', marginTop: '8px' }}>
                 {[
-                  { key: 'collar', label: 'Collar (Neck)' },
+                  { key: 'length', label: 'Length' },
                   { key: 'chest', label: 'Chest' },
+                  { key: 'waist', label: 'Waist' },
                   { key: 'shoulder', label: 'Shoulder' },
-                  { key: 'sleeveLength', label: 'Sleeve Length' },
-                  { key: 'bicep', label: 'Bicep / Armhole' },
-                  { key: 'wristCuff', label: 'Cuff / Wrist' },
-                  { key: 'shirtLength', label: 'Shirt / Coat Length' },
+                  { key: 'sleeve', label: 'Sleeve' },
+                  { key: 'muhuri', label: 'Muhuri' },
+                  { key: 'fNeck', label: 'F. Neck' },
+                  { key: 'bNeck', label: 'B. Neck' },
+                  { key: 'thigh', label: 'Thigh' },
+                  { key: 'armpit', label: 'Armpit' },
+                  { key: 'hai', label: 'Hai' },
+                  { key: 'hip', label: 'Hip' },
+                  { key: 'lining', label: 'Lining' },
+                  { key: 'hbl', label: 'H.B.L.' },
+                  { key: 'bp', label: 'B. P.' },
                 ].map((item) => (
                   <div
                     key={item.key}
@@ -278,14 +296,14 @@ export const MeasurementView = () => {
                     onMouseEnter={() => setActiveMeasurementPoint(item.key)}
                     onMouseLeave={() => setActiveMeasurementPoint(null)}
                   >
-                    <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>
+                    <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '2px', fontWeight: 700 }}>
                       {item.label}
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       className="form-input font-mono"
-                      style={{ padding: '6px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'center' }}
+                      placeholder="Inches"
+                      style={{ padding: '6px', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center' }}
                       value={specs[item.key] || ''}
                       onChange={(e) => handleSpecChange(item.key, e.target.value)}
                     />
@@ -294,19 +312,18 @@ export const MeasurementView = () => {
               </div>
             </div>
 
-            {/* Lower Body Specs */}
+            {/* Lower Body & Skirt Specs */}
             <div>
               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Lower Body Specifications
+                Lower Body & Skirt Specifications (Inches)
               </span>
-              <div className="specs-input-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginTop: '8px' }}>
+              <div className="specs-input-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', marginTop: '8px' }}>
                 {[
-                  { key: 'waist', label: 'Waist' },
-                  { key: 'hip', label: 'Hip' },
-                  { key: 'trouserLength', label: 'Outseam Length' },
-                  { key: 'inseam', label: 'Inseam Length' },
-                  { key: 'thigh', label: 'Thigh Circumference' },
-                  { key: 'bottomHem', label: 'Bottom Hem Opening' },
+                  { key: 'demu', label: 'Demu' },
+                  { key: 'knee', label: 'Knee' },
+                  { key: 'gher', label: 'Gher' },
+                  { key: 'side', label: 'Side' },
+                  { key: 'secom', label: 'Secom' },
                 ].map((item) => (
                   <div
                     key={item.key}
@@ -319,14 +336,14 @@ export const MeasurementView = () => {
                     onMouseEnter={() => setActiveMeasurementPoint(item.key)}
                     onMouseLeave={() => setActiveMeasurementPoint(null)}
                   >
-                    <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>
+                    <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '2px', fontWeight: 700 }}>
                       {item.label}
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       className="form-input font-mono"
-                      style={{ padding: '6px', fontSize: '0.9rem', fontWeight: 700, textAlign: 'center' }}
+                      placeholder="Inches"
+                      style={{ padding: '6px', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center' }}
                       value={specs[item.key] || ''}
                       onChange={(e) => handleSpecChange(item.key, e.target.value)}
                     />

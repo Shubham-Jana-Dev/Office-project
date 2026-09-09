@@ -85,6 +85,7 @@ export const CheckoutModal = ({
       cashier: selectedCashier,
       profit: orderProfit,
       saleType,
+      amountPaid: paymentMethod === 'cash' ? Math.min(Number(cashTendered) || 0, grandTotal) : grandTotal,
     };
 
     const newOrder = await completeSale(salePayload);
@@ -342,7 +343,7 @@ export const CheckoutModal = ({
                 Scan to Pay via UPI / Digital Wallet
               </h4>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                VPA: <code style={{ color: '#818CF8' }}>threadcraft@icici</code>
+                VPA: <code style={{ color: '#818CF8' }}>sonatailors@icici</code>
               </p>
               <div className="badge badge-cyan" style={{ marginTop: '6px' }}>
                 Amount: {formatCurrency(grandTotal, currency)}

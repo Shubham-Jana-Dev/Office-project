@@ -63,6 +63,17 @@ def create_purchase_order():
         return jsonify({'error': 'Vendor not found'}), 404
 
     order_id = data.get('id') or f"PO-{int(datetime.utcnow().timestamp())}"
+
+    # Standardize items_data to hold items list and metadata if needed
+    raw_items = data.get('items', [])
+    items_meta = {
+        'items': raw_items,
+        'supplierInvoiceNo': data.get('supplierInvoiceNo'),
+        'supplierInvoiceDate': data.get('supplierInvoiceDate'),
+        'supplierInvoiceFile': data.get('supplierInvoiceFile'),
+        'supplierInvoiceName': data.get('supplierInvoiceName'),
+    }
+
     order = PurchaseOrder(
         id=order_id,
         po_no=data.get('poNo') or f"PO-{PurchaseOrder.query.count() + 1001}",
@@ -72,7 +83,11 @@ def create_purchase_order():
         expected_delivery=data.get('expectedDate') or data.get('expectedDelivery'),
         total_amount=data.get('total', data.get('totalAmount', 0.0)),
         status='Ordered',
-        items_data=data.get('items', []),
+        items_data=items_meta,
+        supplier_invoice_no=data.get('supplierInvoiceNo'),
+        supplier_invoice_date=data.get('supplierInvoiceDate'),
+        supplier_invoice_file=data.get('supplierInvoiceFile'),
+        supplier_invoice_name=data.get('supplierInvoiceName'),
     )
     unpaid = max(0, float(data.get('total', 0)) - float(data.get('paidAmount', 0)))
     vendor.balance_due = float(vendor.balance_due or 0) + unpaid
@@ -94,17 +109,44 @@ def create_purchase_order():
     return jsonify(order.to_dict()), 201
 
 
+@purchases_bp.route('/orders/<string:order_id>/invoice', methods=['POST', 'PUT', 'PATCH'])
+def upload_purchase_order_invoice(order_id):
+    order = PurchaseOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Purchase order not found'}), 404
+
+    data = request.get_json() or {}
+    order.supplier_invoice_no = data.get('supplierInvoiceNo') or order.supplier_invoice_no
+    order.supplier_invoice_date = data.get('supplierInvoiceDate') or order.supplier_invoice_date
+    if 'supplierInvoiceFile' in data:
+        order.supplier_invoice_file = data.get('supplierInvoiceFile')
+    if 'supplierInvoiceName' in data:
+        order.supplier_invoice_name = data.get('supplierInvoiceName')
+
+    # Update JSON snapshot
+    items_meta = order.items_data if isinstance(order.items_data, dict) else {'items': order.items_data or []}
+    items_meta['supplierInvoiceNo'] = order.supplier_invoice_no
+    items_meta['supplierInvoiceDate'] = order.supplier_invoice_date
+    items_meta['supplierInvoiceFile'] = order.supplier_invoice_file
+    items_meta['supplierInvoiceName'] = order.supplier_invoice_name
+    order.items_data = items_meta
+
+    db.session.commit()
+    return jsonify(order.to_dict()), 200
+
+
 @purchases_bp.route('/orders/<string:order_id>/receive', methods=['POST'])
 def receive_purchase_order(order_id):
     order = PurchaseOrder.query.get(order_id)
     if not order:
         return jsonify({'error': 'Purchase order not found'}), 404
 
-    for item in order.items_data or []:
+    items_list = order.items_data.get('items', []) if isinstance(order.items_data, dict) else (order.items_data or [])
+    for item in items_list:
         product_id = item.get('productId') or item.get('id')
         product = Product.query.get(product_id) if product_id else None
         if product:
             product.stock = int(product.stock or 0) + int(item.get('qty', item.get('quantity', 0)) or 0)
-    order.status = 'Received'
+    order.status = 'Completed'
     db.session.commit()
     return jsonify(order.to_dict()), 200

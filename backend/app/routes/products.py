@@ -54,6 +54,8 @@ def create_product():
         fit=data.get('fit'),
         tax_rate=data.get('taxRate', 12.0),
         hsn=data.get('hsn'),
+        assigned_employee=data.get('assignedEmployee', 'Not Assigned'),
+        base_incentive=data.get('baseIncentive', 0.0),
         image=data.get('image', '👔')
     )
     db.session.add(product)
@@ -73,7 +75,18 @@ def update_product(product_id):
     if 'costPrice' in data: product.cost_price = data['costPrice']
     if 'minStock' in data: product.min_stock = data['minStock']
     if 'sizes' in data: product.sizes = data['sizes']
-    if 'colors' in data: product.colors = data['colors']
+    if 'assignedEmployee' in data: product.assigned_employee = data['assignedEmployee']
+    if 'baseIncentive' in data: product.base_incentive = data['baseIncentive']
+    if 'category' in data: product.category = data['category']
 
     db.session.commit()
     return jsonify(product.to_dict()), 200
+
+@products_bp.route('/<string:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+    db.session.delete(product)
+    db.session.commit()
+    return jsonify({'message': 'Product deleted successfully'}), 200

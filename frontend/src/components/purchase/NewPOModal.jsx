@@ -4,7 +4,7 @@ import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { VendorModal } from './VendorModal';
 import { ProductModal } from '../common/ProductModal';
-import { Plus, Trash2, Truck } from 'lucide-react';
+import { Plus, Trash2, Truck, FileText, Upload, Paperclip, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 
 export const NewPOModal = ({ isOpen, onClose }) => {
@@ -14,6 +14,14 @@ export const NewPOModal = ({ isOpen, onClose }) => {
   const [expectedDate, setExpectedDate] = useState('');
   const [paidAmount, setPaidAmount] = useState(0);
   const [notes, setNotes] = useState('');
+  
+  // Supplier Invoice State
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
+  const [supplierInvoiceDate, setSupplierInvoiceDate] = useState('');
+  const [supplierInvoiceFile, setSupplierInvoiceFile] = useState('');
+  const [supplierInvoiceName, setSupplierInvoiceName] = useState('');
+  const [showInvoiceSection, setShowInvoiceSection] = useState(false);
+
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [newVendorName, setNewVendorName] = useState('');
   const [newProductName, setNewProductName] = useState('');
@@ -36,6 +44,18 @@ export const NewPOModal = ({ isOpen, onClose }) => {
 
   const handleRemoveItem = (index) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleInvoiceFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setSupplierInvoiceName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setSupplierInvoiceFile(event.target.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const subtotal = items.reduce(
@@ -66,6 +86,10 @@ export const NewPOModal = ({ isOpen, onClose }) => {
       total,
       paidAmount: Number(paidAmount) || 0,
       notes,
+      supplierInvoiceNo,
+      supplierInvoiceDate: supplierInvoiceDate || new Date().toISOString().split('T')[0],
+      supplierInvoiceFile,
+      supplierInvoiceName,
     });
 
     onClose();
@@ -76,7 +100,7 @@ export const NewPOModal = ({ isOpen, onClose }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="Create Purchase Order (Raw Materials & Fabric Sourcing)"
-      maxWidth="700px"
+      maxWidth="720px"
     >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -176,7 +200,7 @@ export const NewPOModal = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => handleRemoveItem(index)}
-                    style={{ background: 'transparent', border: 'none', color: '#F43F5E', cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: 'none', color: '#F43F5E', cursor: 'cursor' }}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -184,6 +208,72 @@ export const NewPOModal = ({ isOpen, onClose }) => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Supplier Invoice Section Toggle & Card */}
+        <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} color="var(--primary)" />
+              <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>Supplier Invoice Attachment (Optional)</span>
+            </div>
+            <button
+              type="button"
+              className={`btn ${showInvoiceSection ? 'btn-secondary' : 'btn-outline'} btn-sm`}
+              onClick={() => setShowInvoiceSection((prev) => !prev)}
+            >
+              <Paperclip size={14} /> {showInvoiceSection ? 'Hide Invoice Form' : '+ Add Invoice Details'}
+            </button>
+          </div>
+
+          {showInvoiceSection && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed var(--border-color)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="form-label">Supplier Invoice No.</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. INV-SUP-9081"
+                    value={supplierInvoiceNo}
+                    onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Supplier Invoice Date</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={supplierInvoiceDate}
+                    onChange={(e) => setSupplierInvoiceDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Upload Supplier Invoice File (PDF / Image)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="file"
+                    id="new-po-invoice-file"
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={handleInvoiceFileChange}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="new-po-invoice-file" className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
+                    <Upload size={14} /> Attach Invoice File
+                  </label>
+                  {supplierInvoiceName ? (
+                    <span style={{ fontSize: '0.8rem', color: '#10B981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle size={14} /> {supplierInvoiceName}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No file attached yet</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Totals & Advance Payment */}
@@ -267,3 +357,4 @@ export const NewPOModal = ({ isOpen, onClose }) => {
     </Modal>
   );
 };
+

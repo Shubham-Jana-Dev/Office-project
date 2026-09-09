@@ -1,300 +1,366 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency, formatDate } from './formatters';
+import { SHOP_DETAILS } from '../config/constants';
 
-// 1. Generate A4 Detailed Tax Invoice PDF
-export const exportInvoicePDF = (order) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
+const drawHeader = (doc, no, dateStr) => {
+  doc.setTextColor(30, 58, 138); // Dark Blue text mimicking the ink
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`No. ${no || '_____'}`, 14, 15);
+  doc.text(`Date : ${dateStr || new Date().toLocaleDateString()}`, 160, 15);
+
+  doc.setFontSize(24);
+  doc.text(SHOP_DETAILS.name, 105, 25, { align: 'center' });
+
+  doc.setFontSize(11);
+  doc.text(SHOP_DETAILS.tagline, 105, 31, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(SHOP_DETAILS.address, 105, 36, { align: 'center' });
+  if (SHOP_DETAILS.email) doc.text(`E-mail : ${SHOP_DETAILS.email}`, 105, 41, { align: 'center' });
+  doc.text(`Ph. : ${SHOP_DETAILS.phone}`, 105, 46, { align: 'center' });
+
+  doc.setDrawColor(30, 58, 138);
+  doc.line(14, 50, 196, 50);
+  doc.setLineDashPattern([1, 1], 0);
+  doc.line(14, 52, 196, 52);
+  doc.setLineDashPattern([], 0); // reset
+};
+
+const drawFooter = (doc, finalY, advance, due) => {
+  doc.setTextColor(30, 58, 138);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  
+  doc.text(`Date of Delivery ...............................`, 80, finalY + 8);
+  
+  doc.setFontSize(8);
+  doc.text(`N.B. : ${SHOP_DETAILS.terms1}`, 80, finalY + 14);
+  doc.text(`          ${SHOP_DETAILS.terms2}`, 80, finalY + 18);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(SHOP_DETAILS.footerNote, 105, finalY + 25, { align: 'center' });
+  
+  doc.setFont('helvetica', 'normal');
+  doc.line(160, finalY + 35, 196, finalY + 35);
+  doc.text('Signature', 170, finalY + 40);
+};
+
+// Helper to build jsPDF document for Invoice
+export const buildInvoicePDFDoc = (order) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  drawHeader(doc, order.invoiceNo || order.bookingNo || order.id, order.date || order.bookingDate);
+
+  const totalVal = order.total !== undefined ? Number(order.total) : (order.totalAmount !== undefined ? Number(order.totalAmount) : 0);
+  
+  let advanceVal = 0;
+  if (order.advance !== undefined) {
+    advanceVal = Number(order.advance);
+  } else if (order.advancePaid !== undefined) {
+    advanceVal = Number(order.advancePaid);
+  } else if (order.amountPaid !== undefined) {
+    advanceVal = Number(order.amountPaid);
+  } else {
+    advanceVal = totalVal;
+  }
+
+  let dueVal = 0;
+  if (order.balanceDue !== undefined) {
+    dueVal = Math.max(0, Number(order.balanceDue));
+  } else if (order.due !== undefined) {
+    dueVal = Math.max(0, Number(order.due));
+  } else {
+    dueVal = Math.max(0, totalVal - advanceVal);
+  }
+
+  const isRawMaterialBill = order.saleType === 'raw_material' || order.orderType === 'RAW_MATERIAL' || order.type === 'PURCHASE_ORDER';
+
+  // Customer Details
+  doc.setTextColor(30, 58, 138);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Phone : ${order.customerPhone || '________________'}`, 14, 58);
+  doc.text(`Name : ${order.customerName || 'Walk-in Retail Customer'}`, 80, 58);
+  doc.text(`Address : ${order.customerAddress || '____________________________________'}`, 80, 65);
+
+  // Left Column list (Work Types Checkboxes - Product Selling / Booking Bills ONLY)
+  if (!isRawMaterialBill) {
+    const leftItems = ['Ari', 'Salma', 'Chumki', 'Gujrati', 'Ripu', 'P. Ko', 'Falls', 'Polish', 'Fabrick', 'Khatha', 'Embrodory', 'Dry'];
+    let yPos = 72;
+    leftItems.forEach(item => {
+      const isChecked = Array.isArray(order.workTypes) && order.workTypes.includes(item);
+      doc.setFont('helvetica', isChecked ? 'bold' : 'normal');
+      doc.text(`${item} - ${isChecked ? 'v' : ''}`, 14, yPos);
+      yPos += 7.5;
+    });
+  }
+
+  // Items Table (Right side for product bills, Full width for raw material bills)
+  const tableRows = (order.items || []).map((item) => {
+    const qty = item.quantity || item.qty || 1;
+    const rate = (item.price || item.unitPrice || 0);
+    const itemTotal = item.total !== undefined ? item.total : rate * qty;
+    const rsVal = Math.floor(itemTotal);
+    const pVal = Math.round((itemTotal - rsVal) * 100);
+    return [
+      item.name,
+      qty,
+      rate > 0 ? rate.toFixed(0) : '',
+      rsVal > 0 ? rsVal.toString() : '',
+      pVal > 0 ? pVal.toString() : ''
+    ];
   });
 
-  // Header Banner
-  doc.setFillColor(30, 41, 59); // Slate-800
-  doc.rect(0, 0, 210, 35, 'F');
+  const totalRs = Math.floor(totalVal);
+  const totalP = Math.round((totalVal - totalRs) * 100);
+  const advRs = advanceVal > 0 ? Math.floor(advanceVal) : '';
+  const advP = advanceVal > 0 && Math.round((advanceVal - Math.floor(advanceVal)) * 100) ? Math.round((advanceVal - Math.floor(advanceVal)) * 100) : '';
+  const dueRs = dueVal > 0 ? Math.floor(dueVal) : '';
+  const dueP = dueVal > 0 && Math.round((dueVal - Math.floor(dueVal)) * 100) ? Math.round((dueVal - Math.floor(dueVal)) * 100) : '';
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  doc.text('THREADCRAFT APPAREL & CO.', 14, 18);
+  autoTable(doc, {
+    startY: 72,
+    margin: { left: isRawMaterialBill ? 14 : 75, right: 14 },
+    head: [isRawMaterialBill ? ['Fabric Particulars', 'Meters (m)', 'Rate / m', 'Rs.', 'P.'] : ['Particulars', 'Qty', 'Rate', 'Rs.', 'P.']],
+    body: tableRows.length ? tableRows : [['Standard Particular', '1', totalVal.toFixed(0), Math.floor(totalVal).toString(), '']],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      halign: 'center',
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      minCellHeight: 7
+    },
+    columnStyles: {
+      0: { cellWidth: isRawMaterialBill ? 90 : 56 },
+      1: { cellWidth: isRawMaterialBill ? 22 : 14, halign: 'center' },
+      2: { cellWidth: isRawMaterialBill ? 22 : 18, halign: 'right' },
+      3: { cellWidth: isRawMaterialBill ? 22 : 18, halign: 'right' },
+      4: { cellWidth: 10, halign: 'right' }
+    },
+    foot: [
+      [{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, totalRs ? totalRs.toString() : '', totalP ? totalP.toString() : ''],
+      [{ content: 'Advance', colSpan: 3, styles: { halign: 'right' } }, advRs ? advRs.toString() : '', advP ? advP.toString() : ''],
+      [{ content: 'Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, dueRs ? dueRs.toString() : '', dueP ? dueP.toString() : '']
+    ],
+    footStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      fontStyle: 'normal'
+    }
+  });
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Premium Garments, Bespoke Tailoring & Textile Solutions', 14, 25);
-  doc.text('GSTIN: 27AABCT3518Q1ZS | Phone: +1 (555) 234-5678 | contact@threadcraft.com', 14, 30);
+  drawFooter(doc, doc.lastAutoTable.finalY, advanceVal, dueVal);
+  return doc;
+};
 
-  // Invoice Title & Meta
-  doc.setTextColor(30, 41, 59);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAX INVOICE / CASH MEMO', 14, 45);
+// 1. Generate & Save Invoice PDF (Product Sales & Order Bookings)
+export const exportInvoicePDF = (order) => {
+  const doc = buildInvoicePDFDoc(order);
+  const billNo = order.invoiceNo || order.bookingNo || order.id || '000';
+  doc.save(`Invoice_${billNo}.pdf`);
+};
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Invoice No: ${order.invoiceNo || order.id}`, 14, 52);
-  doc.text(`Date & Time: ${order.date || new Date().toLocaleString()}`, 14, 57);
-  doc.text(`Payment Mode: ${(order.paymentMethod || 'CASH').toUpperCase()}`, 14, 62);
-  doc.text(`Cashier / Operator: ${order.cashier || 'Admin'}`, 14, 67);
+// Generate Invoice PDF File/Blob Object for Sharing
+export const generateInvoicePDFBlob = (order) => {
+  const doc = buildInvoicePDFDoc(order);
+  const billNo = order.invoiceNo || order.bookingNo || order.id || '000';
+  const fileName = `Invoice_${billNo}.pdf`;
+  const blob = doc.output('blob');
+  const file = new File([blob], fileName, { type: 'application/pdf' });
+  return { blob, file, fileName };
+};
 
-  // Customer Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(120, 40, 76, 28, 2, 2, 'FD');
+// 2. Generate Tailor Job Card
+export const exportTailorJobCardPDF = (booking, measurements) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  drawHeader(doc, booking.bookingNo || booking.id, formatDate(booking.date || booking.bookingDate));
 
-  doc.setTextColor(71, 85, 105);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('BILLED TO (CUSTOMER):', 124, 46);
+  const totalVal = Number(booking.totalAmount !== undefined ? booking.totalAmount : (booking.total !== undefined ? booking.total : 0));
+  const advanceVal = Number(booking.advancePaid !== undefined ? booking.advancePaid : (booking.advance !== undefined ? booking.advance : totalVal));
+  const dueVal = Number(booking.balanceDue !== undefined ? booking.balanceDue : Math.max(0, totalVal - advanceVal));
 
-  doc.setTextColor(15, 23, 42);
+  // Customer Details
+  doc.setTextColor(30, 58, 138);
   doc.setFontSize(10);
-  doc.text(order.customerName || 'Walk-in Retail Customer', 124, 52);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Phone: ${order.customerPhone || 'N/A'}`, 124, 58);
-  doc.text(`Address/City: ${order.customerAddress || 'Local Store'}`, 124, 63);
+  doc.text(`Name : ${booking.customerName || '______________________________________'}`, 80, 60);
+  doc.text(`Phone : ${booking.customerPhone || '______________________________________'}`, 80, 68);
 
-  // Items Table
-  const tableRows = (order.items || []).map((item, index) => [
-    index + 1,
-    `${item.name}\n[Variant: ${item.size || 'M'} | Color: ${item.color || 'Standard'}]`,
-    item.barcode || item.sku || 'SKU-00',
-    item.quantity || 1,
-    formatCurrency(item.price),
-    `${item.discount || 0}%`,
-    formatCurrency(item.price * (item.quantity || 1) * (1 - (item.discount || 0) / 100)),
-  ]);
+  // Left Column Measurements (Matching POS Sizing Specs)
+  const posMeasurementItems = [
+    { label: 'Length', key: 'length' },
+    { label: 'H.B.L.', key: 'hbl' },
+    { label: 'Chest', key: 'chest' },
+    { label: 'Waist', key: 'waist' },
+    { label: 'Shoulder', key: 'shoulder' },
+    { label: 'Sleeve', key: 'sleeve' },
+    { label: 'Muhuri', key: 'muhuri' },
+    { label: 'F.Neck', key: 'fNeck' },
+    { label: 'B.P.', key: 'bp' },
+    { label: 'B.Neck', key: 'bNeck' },
+    { label: 'Thigh', key: 'thigh' },
+    { label: 'Armpit', key: 'armpit' },
+    { label: 'Hai', key: 'hai' },
+    { label: 'Hip', key: 'hip' },
+    { label: 'Lining', key: 'lining' },
+    { label: 'Demu', key: 'demu' },
+    { label: 'Knee', key: 'knee' },
+    { label: 'Gher', key: 'gher' },
+    { label: 'Side', key: 'side' },
+    { label: 'Secom', key: 'secom' }
+  ];
+  let yPos = 70;
+  doc.setFontSize(8.5);
+  posMeasurementItems.forEach(item => {
+    const val = (measurements && (measurements[item.key] || measurements[item.label] || measurements[item.key.toLowerCase()])) || '';
+    doc.text(`${item.label} - ${val}`, 14, yPos);
+    yPos += 5.5;
+  });
+
+  // Work Type checkboxes
+  const check = (work) => (booking.workTypes && booking.workTypes.includes(work)) ? '[v] ' + work : '[ ] ' + work;
 
   autoTable(doc, {
     startY: 75,
-    head: [['#', 'Item Description & Specs', 'SKU / Barcode', 'Qty', 'Unit Price', 'Disc', 'Total']],
-    body: tableRows,
-    theme: 'striped',
+    margin: { left: 80, right: 14 },
+    head: [['Particulars', '', '', '', 'Rs.', 'P.']],
+    body: [
+      [{ content: 'Work Required:', colSpan: 6 }],
+      [{ content: check('Ari'), colSpan: 1 }, { content: check('Salma'), colSpan: 1 }, { content: check('Chumki'), colSpan: 1 }, { content: check('Gujrati'), colSpan: 1 }, '', ''],
+      [{ content: check('Ripu'), colSpan: 1 }, { content: check('P. Ko'), colSpan: 1 }, { content: check('Falls'), colSpan: 1 }, { content: check('Polish'), colSpan: 1 }, '', ''],
+      [{ content: check('Fabrick'), colSpan: 1 }, { content: check('Khatha'), colSpan: 1 }, { content: check('Embrodory'), colSpan: 1 }, { content: check('Dry'), colSpan: 1 }, '', ''],
+      [{ content: 'Making Charge', colSpan: 4, styles: { halign: 'right' } }, '', ''],
+      [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, totalVal.toFixed(2), ''],
+      [{ content: 'Advance', colSpan: 4, styles: { halign: 'right' } }, advanceVal.toFixed(2), ''],
+      [{ content: 'Due', colSpan: 4, styles: { halign: 'right' } }, dueVal.toFixed(2), '']
+    ],
+    theme: 'grid',
     headStyles: {
-      fillColor: [79, 70, 229], // Indigo 600
+      fillColor: [30, 58, 138],
       textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold',
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      halign: 'center'
     },
     bodyStyles: {
-      fontSize: 8.5,
-      textColor: [30, 41, 59],
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      minCellHeight: 8
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 70 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 15, halign: 'center' },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 15, halign: 'center' },
-      6: { cellWidth: 28, halign: 'right' },
-    },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 11 }
+    }
   });
 
-  const finalY = doc.lastAutoTable.finalY + 8;
-
-  // Summary Totals Box
-  const summaryX = 120;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(summaryX, finalY, 76, 40, 2, 2, 'FD');
-
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text('Subtotal:', summaryX + 4, finalY + 7);
-  doc.text(formatCurrency(order.subtotal || order.total * 0.88), 190, finalY + 7, { align: 'right' });
-
-  doc.text('Tax / GST (12%):', summaryX + 4, finalY + 14);
-  doc.text(formatCurrency(order.tax || order.total * 0.12), 190, finalY + 14, { align: 'right' });
-
-  doc.text('Discount Applied:', summaryX + 4, finalY + 21);
-  doc.text(`-${formatCurrency(order.discountTotal || 0)}`, 190, finalY + 21, { align: 'right' });
-
-  doc.setDrawColor(79, 70, 229);
-  doc.line(summaryX + 4, finalY + 26, summaryX + 72, finalY + 26);
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(79, 70, 229);
-  doc.text('Grand Total:', summaryX + 4, finalY + 34);
-  doc.text(formatCurrency(order.total || 0), 190, finalY + 34, { align: 'right' });
-
-  // Terms & Conditions
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('Terms & Conditions:', 14, finalY + 10);
-  doc.text('1. Goods once sold can be exchanged within 7 days with original tag and bill.', 14, finalY + 16);
-  doc.text('2. Alterations are complimentary for the first 30 days of purchase.', 14, finalY + 22);
-  doc.text('3. Custom-tailored / bespoke garments are non-refundable.', 14, finalY + 28);
-  doc.text('Thank you for choosing ThreadCraft Apparel! Visit again.', 14, finalY + 36);
-
-  // Authorized Signature
-  doc.line(14, finalY + 58, 70, finalY + 58);
-  doc.text('Customer Signature', 14, finalY + 63);
-
-  doc.line(135, finalY + 58, 190, finalY + 58);
-  doc.text('Authorized Store Signatory', 135, finalY + 63);
-
-  // Save PDF
-  doc.save(`Invoice_${order.invoiceNo || order.id}.pdf`);
-};
-
-// 2. Generate Tailor Job Card & Measurement Sheet PDF
-export const exportTailorJobCardPDF = (booking, measurements) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
-
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 210, 30, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('MASTER TAILOR JOB CARD & CUTTING SHEET', 14, 15);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Booking Ref: #${booking.bookingNo || booking.id} | Garment: ${booking.garmentType || 'Custom Garment'}`, 14, 23);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(`Customer Name: ${booking.customerName}`, 14, 40);
-  doc.text(`Phone: ${booking.customerPhone || 'N/A'}`, 14, 46);
-  doc.text(`Assigned Master: ${booking.assignedMaster || 'Senior Tailor'}`, 14, 52);
-
-  doc.text(`Trial Date: ${formatDate(booking.trialDate)}`, 110, 40);
-  doc.text(`Delivery Date: ${formatDate(booking.deliveryDate)}`, 110, 46);
-  doc.text(`Fabric: ${booking.fabricDetails || 'Customer Provided'}`, 110, 52);
-
-  // Measurement Specs Table
-  const mList = Object.entries(measurements || {}).map(([key, val]) => [
-    key.replace(/([A-Z])/g, ' $1').toUpperCase(),
-    `${val} inches`,
-  ]);
-
-  autoTable(doc, {
-    startY: 60,
-    head: [['Body Part / Measurement Point', 'Specification (Inches)']],
-    body: mList.length ? mList : [['Standard Fit', 'No custom alterations specified']],
-    theme: 'grid',
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
-    columnStyles: {
-      0: { cellWidth: 100, fontStyle: 'bold' },
-      1: { cellWidth: 80, halign: 'center' },
-    },
-  });
-
-  const nextY = doc.lastAutoTable.finalY + 10;
-
-  // Tailor Styling Instructions
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Styling & Construction Instructions:', 14, nextY);
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, nextY + 4, 180, 24, 2, 2, 'FD');
-
-  doc.text(
-    booking.specialInstructions ||
-      '• Standard double-needle stitching on seams.\n• Fused collar and cuffs with premium canvas lining.\n• Hand-sewn horn buttons and reinforced pocket welts.',
-    18,
-    nextY + 11
-  );
-
+  drawFooter(doc, doc.lastAutoTable.finalY, advanceVal, dueVal);
   doc.save(`JobCard_${booking.bookingNo || booking.id}.pdf`);
 };
 
-// 3. Generate Employee Salary Slip PDF
+// 3. Keep Employee Salary Slip mostly same but with new Shop Name
 export const exportSalarySlipPDF = (employee, salaryData) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
-
-  doc.setFillColor(15, 23, 42);
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  doc.setFillColor(30, 58, 138);
   doc.rect(0, 0, 210, 32, 'F');
-
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('THREADCRAFT APPAREL FACTORY', 14, 16);
+  doc.text(SHOP_DETAILS.name.toUpperCase(), 14, 16);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`MONTHLY SALARY & PERFORMANCE PAYSLIP - ${salaryData.month || 'Current Month'}`, 14, 24);
+  doc.text(`MONTHLY SALARY PAYSLIP - ${salaryData.month || 'Current Month'}`, 14, 24);
 
-  // Employee details
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(9);
+  // Quick fallback content
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Employee Name: ${employee.name}`, 14, 40);
+  doc.text(`Net Pay: ${formatCurrency(salaryData.netPay)}`, 14, 50);
+  
+  doc.save(`Payslip_${employee.empId || employee.id}.pdf`);
+};
+
+// 4. Generate Raw Material Purchase Order PDF (No Work Types Checkboxes!)
+export const exportPurchaseOrderPDF = (po) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  drawHeader(doc, po.id, po.orderDate);
+
+  const totalVal = Number(po.total || 0);
+  const paidVal = Number(po.paidAmount || 0);
+  const dueVal = Math.max(0, totalVal - paidVal);
+
+  // Supplier Details (Full Width Header)
+  doc.setTextColor(30, 58, 138);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Employee ID: ${employee.empId || employee.id}`, 14, 42);
-  doc.text(`Name: ${employee.name}`, 14, 48);
-  doc.text(`Designation: ${employee.role || 'Staff'}`, 14, 54);
-  doc.text(`Pay Type: ${(employee.payType || 'fixed').toUpperCase()}`, 14, 60);
+  doc.text(`RAW MATERIAL PURCHASE ORDER / INWARD MATERIAL BILL`, 14, 58);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Supplier / Mill : ${po.vendorName || 'Textile Supplier'}`, 14, 65);
+  doc.text(`Supplier ID : ${po.vendorId || 'VEN-001'}`, 14, 72);
+  doc.text(`Order Date : ${po.orderDate || ''}`, 130, 65);
+  doc.text(`Expected Delivery : ${po.expectedDate || ''}`, 130, 72);
 
-  doc.text(`Attendance Days: ${salaryData.presentDays || 26} / ${salaryData.totalDays || 30}`, 110, 42);
-  doc.text(`Overtime Hours: ${salaryData.otHours || 0} hrs`, 110, 48);
-  doc.text(`Pieces Completed: ${salaryData.piecesDone || 0} pcs`, 110, 54);
-  doc.text(`Performance Rating: ${employee.performanceScore || '4.8'}/5.0`, 110, 60);
-
-  // Breakdown Table
-  const otherEarningsLabel = salaryData.customBonus > 0 
-    ? `Special Bonus (${salaryData.customBonusNote || 'Owner Reward'})` 
-    : 'Sales Target / Quality Bonus';
-  const otherEarningsVal = salaryData.customBonus > 0 
-    ? formatCurrency((salaryData.performanceBonus || 0) + salaryData.customBonus)
-    : formatCurrency(salaryData.bonus || 0);
-
-  const otherDeductionLabel = salaryData.customDeduction > 0 
-    ? `Other Deduction (${salaryData.customDeductionNote || 'Adjustment'})` 
-    : 'Other Deductions';
-  const otherDeductionVal = formatCurrency(salaryData.customDeduction || 0);
-
-  const rows = [
-    ['Base Salary / Minimum Guaranteed', formatCurrency(salaryData.basePay || 0), 'Advance Loan Deduction', formatCurrency(salaryData.advanceDeduction || 0)],
-    [`Piece / Sales Earnings (${salaryData.piecesDone || 0} pcs)`, formatCurrency(salaryData.pieceEarnings || 0), 'Late / Unpaid Leave Penalty', formatCurrency(salaryData.leaveDeductions || 0)],
-    [`Overtime Pay (${salaryData.otHours || 0} hrs)`, formatCurrency(salaryData.otEarnings || 0), 'Tax / Standard Deduction', formatCurrency(salaryData.taxDeduction || 0)],
-    [otherEarningsLabel, otherEarningsVal, otherDeductionLabel, otherDeductionVal],
-  ];
+  // Raw Material Line Items Table (Full Width: Left 14 to Right 14 - NO Checkboxes!)
+  const tableRows = (po.items || []).map((item) => [
+    item.name,
+    item.qty || item.quantity || 1,
+    (item.unitPrice || item.price || 0).toFixed(2),
+    ((item.unitPrice || item.price || 0) * (item.qty || item.quantity || 1)).toFixed(2),
+    ''
+  ]);
 
   autoTable(doc, {
-    startY: 68,
-    head: [['Earnings Head', 'Amount', 'Deductions Head', 'Amount']],
-    body: rows,
+    startY: 78,
+    margin: { left: 14, right: 14 },
+    head: [['Raw Material Particulars / Specifications', 'Qty / Rolls', 'Rate per Unit', 'Rs.', 'P.']],
+    body: tableRows.length ? tableRows : [['Raw Material / Fabric Roll Procurement', '1', totalVal.toFixed(2), totalVal.toFixed(2), '']],
     theme: 'grid',
-    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-    columnStyles: {
-      0: { cellWidth: 55 },
-      1: { cellWidth: 40, halign: 'right' },
-      2: { cellWidth: 55 },
-      3: { cellWidth: 40, halign: 'right' },
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      halign: 'center'
     },
+    bodyStyles: {
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      minCellHeight: 8
+    },
+    columnStyles: {
+      0: { cellWidth: 95 },
+      1: { cellWidth: 25, halign: 'center' },
+      2: { cellWidth: 25, halign: 'right' },
+      3: { cellWidth: 25, halign: 'right' },
+      4: { cellWidth: 12 }
+    },
+    foot: [
+      [{ content: 'Total Purchase Amount', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, totalVal.toFixed(2), ''],
+      [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' } }, paidVal.toFixed(2), ''],
+      [{ content: 'Balance Payable', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, dueVal.toFixed(2), '']
+    ],
+    footStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [30, 58, 138],
+      lineColor: [30, 58, 138],
+      lineWidth: 0.3,
+      fontStyle: 'normal'
+    }
   });
 
-  const nextY = doc.lastAutoTable.finalY + 12;
-
-  // Net Pay Box
-  doc.setFillColor(240, 253, 244);
-  doc.setDrawColor(34, 197, 94);
-  doc.roundedRect(14, nextY, 182, 28, 2, 2, 'FD');
-
-  doc.setTextColor(22, 101, 52);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Total Gross Earnings: ${formatCurrency(salaryData.grossEarnings)}`, 20, nextY + 9);
-  doc.text(`Total Deductions: ${formatCurrency(salaryData.totalDeductions)}`, 20, nextY + 16);
-  doc.text(`Remaining Advance Balance: ${formatCurrency(employee.advanceLoanRemaining || 0)}`, 20, nextY + 23);
-
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('NET SALARY PAYABLE:', 100, nextY + 14);
-  doc.text(formatCurrency(salaryData.netPay), 185, nextY + 14, { align: 'right' });
-
-  doc.save(`Payslip_${employee.empId || employee.id}_${salaryData.month || 'Month'}.pdf`);
+  drawFooter(doc, doc.lastAutoTable.finalY, paidVal, dueVal);
+  doc.save(`PO_${po.id}.pdf`);
 };

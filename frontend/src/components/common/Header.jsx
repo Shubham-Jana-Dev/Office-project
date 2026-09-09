@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { SHOP_DETAILS } from '../../config/constants';
 import {
   Scissors,
   ScanBarcode,
@@ -27,8 +28,6 @@ export const Header = ({ onOpenScanner }) => {
 
   const totalSalesToday = salesOrders.reduce((sum, o) => sum + (o.total || 0), 0);
   const activeBatchesCount = productStages.filter((b) => b.currentStage !== 'Showroom / Ready Stock').length;
-  const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
-
   return (
     <header className="app-header">
       {/* Mobile Hamburger Menu Toggle */}
@@ -62,7 +61,7 @@ export const Header = ({ onOpenScanner }) => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-              THREADCRAFT <span style={{ color: '#6366F1' }}>PRO</span>
+              {SHOP_DETAILS.name.split(' ')[0].toUpperCase()} <span style={{ color: '#6366F1' }}>{SHOP_DETAILS.name.split(' ').slice(1).join(' ').toUpperCase()}</span>
             </h2>
             <span className="badge badge-primary" style={{ fontSize: '0.62rem' }}>GARMENT ERP</span>
           </div>
@@ -108,24 +107,6 @@ export const Header = ({ onOpenScanner }) => {
           <strong style={{ fontSize: '0.85rem', color: '#F59E0B' }}>{activeBatchesCount} Batches</strong>
         </div>
 
-        {lowStockCount > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'var(--accent-rose-light)',
-              padding: '5px 12px',
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid rgba(244, 63, 94, 0.3)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Package size={15} color="#FB7185" />
-            <span style={{ fontSize: '0.75rem', color: '#FB7185' }}>Low Stock:</span>
-            <strong style={{ fontSize: '0.85rem', color: '#FB7185' }}>{lowStockCount}</strong>
-          </div>
-        )}
       </div>
 
       {/* Actions & Utilities */}

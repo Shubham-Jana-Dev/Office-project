@@ -22,6 +22,8 @@ class Product(db.Model):
     fit = db.Column(db.String(50), nullable=True)
     tax_rate = db.Column(db.Numeric(5, 2), default=12.00)
     hsn = db.Column(db.String(30), nullable=True)
+    assigned_employee = db.Column(db.String(150), default='Not Assigned')
+    base_incentive = db.Column(db.Numeric(10, 2), default=0.00)
     image = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -46,5 +48,7 @@ class Product(db.Model):
             'fit': self.fit,
             'taxRate': float(self.tax_rate) if self.tax_rate is not None else 12.0,
             'hsn': self.hsn,
+            'assignedEmployee': self.assigned_employee or 'Not Assigned',
+            'baseIncentive': float(self.base_incentive) if self.base_incentive is not None else 0.0,
             'image': self.image or '👔',
         }

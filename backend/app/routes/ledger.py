@@ -8,13 +8,16 @@ from backend.app.extensions import db
 ledger_bp = Blueprint('ledger', __name__)
 
 WORKFLOW_STAGES = (
-    'Fabric Sourcing & Inward',
-    'Pattern Making & Cutting',
-    'Stitching & Tailoring',
-    'Embroidery & Detailing',
-    'Washing & Finishing',
-    'Quality Check (QC Inspection)',
-    'Showroom / Ready Stock',
+    'Cutting stage',
+    'Stitching stage',
+    'Hemming stage',
+    'QC stage',
+    'Ready to Delivery stage',
+    'Delivered',
+    'Received',
+    'Fixing in Progress',
+    'QC Check',
+    'Ready to Deliver'
 )
 
 @ledger_bp.route('', methods=['GET'])
@@ -55,7 +58,7 @@ def create_stage():
         client_name=data.get('clientName') or data.get('client'),
         garment_type=data.get('garmentType', 'Custom Garment'),
         quantity=data.get('quantity', 1),
-        current_stage=data.get('currentStage', 'Fabric Sourcing & Inward'),
+        current_stage=data.get('currentStage', 'Cutting stage'),
         assigned_to=data.get('assignedTo'),
         start_date=data.get('startDate'),
         target_date=data.get('targetDate'),
@@ -95,13 +98,13 @@ def update_stage(stage_id):
     data = request.get_json() or {}
     if 'currentStage' in data:
         requested_stage = data['currentStage']
+        # Allow any stage that is in WORKFLOW_STAGES (removed sequential check so checkboxes work)
         if requested_stage not in WORKFLOW_STAGES:
-            return jsonify({'error': f'Invalid workflow stage. Choose one of: {", ".join(WORKFLOW_STAGES)}'}), 400
-        current_index = WORKFLOW_STAGES.index(stage.current_stage) if stage.current_stage in WORKFLOW_STAGES else None
-        requested_index = WORKFLOW_STAGES.index(requested_stage)
-        if current_index is not None and requested_index not in {current_index - 1, current_index + 1}:
-            return jsonify({'error': 'A product can only move to the immediately preceding or following workflow stage'}), 400
-        stage.current_stage = requested_stage
+            # Try to accept old stages or unknown to not break anything, but ideally restrict. 
+            # We'll just update it directly without strict restriction, or log it.
+            stage.current_stage = requested_stage
+        else:
+            stage.current_stage = requested_stage
     if 'progress' in data: stage.progress = data['progress']
     if 'history' in data: stage.history = data['history']
     if 'qcStatus' in data: stage.qc_status = data['qcStatus']

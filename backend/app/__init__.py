@@ -15,6 +15,27 @@ def create_app(config_class=Config):
     jwt.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
 
+    with app.app_context():
+        try:
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                for tbl, col in [
+                    ('purchase_orders', 'supplier_invoice_no VARCHAR(100)'),
+                    ('purchase_orders', 'supplier_invoice_date VARCHAR(50)'),
+                    ('purchase_orders', 'supplier_invoice_file TEXT'),
+                    ('purchase_orders', 'supplier_invoice_name VARCHAR(255)'),
+                    ('order_bookings', 'customer_address TEXT'),
+                    ('sales_orders', 'customer_address TEXT'),
+                ]:
+                    try:
+                        conn.execute(text(f'ALTER TABLE {tbl} ADD COLUMN {col}'))
+                        conn.commit()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
     # ------------------------------------------------------------------
     # Health check — pings the real database so Render's health monitor
     # and /api/health tell you immediately whether the DB is reachable.

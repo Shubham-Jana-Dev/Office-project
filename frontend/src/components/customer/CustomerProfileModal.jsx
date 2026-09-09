@@ -134,24 +134,30 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
   const [activeMeasurementField, setActiveMeasurementField] = useState('chest');
   const [isSizingBreakdownOpen, setIsSizingBreakdownOpen] = useState(false);
 
-  // Sizing State
+  // Sizing State (matching POS Counter Sizing / Measurements)
   const [sizingData, setSizingData] = useState({
-    collar: '16.5',
-    chest: '41.0',
-    waist: '34.5',
-    hip: '40.0',
-    shoulder: '18.5',
-    sleeveLength: '25.0',
-    bicep: '14.5',
-    wristCuff: '7.5',
-    shirtLength: '30.0',
-    trouserWaist: '34.0',
-    trouserLength: '41.5',
-    inseam: '32.0',
-    thigh: '23.0',
-    bottomHem: '14.5',
-    fitPreference: 'Slim Tailored Fit',
-    postureNotes: 'Slightly sloping right shoulder; prefers 0.5" shirt cuff show beyond jacket sleeve.',
+    length: '',
+    chest: '',
+    waist: '',
+    shoulder: '',
+    sleeve: '',
+    muhuri: '',
+    fNeck: '',
+    bNeck: '',
+    thigh: '',
+    armpit: '',
+    hai: '',
+    hip: '',
+    lining: '',
+    hbl: '',
+    bp: '',
+    demu: '',
+    knee: '',
+    gher: '',
+    side: '',
+    secom: '',
+    fitPreference: 'Custom Fit',
+    postureNotes: '',
   });
 
   // Load Customer's Existing Measurements if available
@@ -473,19 +479,25 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                       letterSpacing: '0.05em',
                     }}
                   >
-                    1. Upper Body Measurements (Inches)
+                    1. Main & Upper Body Measurements (Inches)
                   </h4>
                   <div className="profile-specs-grid">
                     {[
-                      { key: 'collar', label: 'Collar / Neck' },
-                      { key: 'chest', label: 'Chest / Bust' },
-                      { key: 'waist', label: 'Stomach / Waist' },
-                      { key: 'hip', label: 'Seat / Hip' },
-                      { key: 'shoulder', label: 'Shoulder Width' },
-                      { key: 'sleeveLength', label: 'Sleeve Length' },
-                      { key: 'bicep', label: 'Bicep / Armhole' },
-                      { key: 'wristCuff', label: 'Wrist Cuff' },
-                      { key: 'shirtLength', label: 'Jacket/Shirt Length' },
+                      { key: 'length', label: 'Length' },
+                      { key: 'chest', label: 'Chest' },
+                      { key: 'waist', label: 'Waist' },
+                      { key: 'shoulder', label: 'Shoulder' },
+                      { key: 'sleeve', label: 'Sleeve' },
+                      { key: 'muhuri', label: 'Muhuri' },
+                      { key: 'fNeck', label: 'F. Neck' },
+                      { key: 'bNeck', label: 'B. Neck' },
+                      { key: 'thigh', label: 'Thigh' },
+                      { key: 'armpit', label: 'Armpit' },
+                      { key: 'hai', label: 'Hai' },
+                      { key: 'hip', label: 'Hip' },
+                      { key: 'lining', label: 'Lining' },
+                      { key: 'hbl', label: 'H.B.L.' },
+                      { key: 'bp', label: 'B. P.' },
                     ].map((item) => (
                       <div
                         key={item.key}
@@ -500,6 +512,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                             color: 'var(--text-muted)',
                             display: 'block',
                             marginBottom: '2px',
+                            fontWeight: 700
                           }}
                         >
                           {item.label}
@@ -516,8 +529,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                             <Minus size={11} />
                           </button>
                           <input
-                            type="number"
-                            step="0.1"
+                            type="text"
                             className="profile-spec-input font-mono"
                             value={sizingData[item.key] || ''}
                             onChange={(e) => {
@@ -541,7 +553,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                   </div>
                 </div>
 
-                {/* 2. Lower Body */}
+                {/* 2. Lower Body & Skirt Specs */}
                 <div className="card" style={{ padding: '14px' }}>
                   <h4
                     style={{
@@ -553,15 +565,15 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                       letterSpacing: '0.05em',
                     }}
                   >
-                    2. Lower Body & Trouser Specs (Inches)
+                    2. Lower Body & Skirt Specs (Inches)
                   </h4>
                   <div className="profile-specs-grid">
                     {[
-                      { key: 'trouserWaist', label: 'Trouser Waist' },
-                      { key: 'trouserLength', label: 'Outseam Length' },
-                      { key: 'inseam', label: 'Inseam / Crotch' },
-                      { key: 'thigh', label: 'Thigh Width' },
-                      { key: 'bottomHem', label: 'Ankle / Bottom Hem' },
+                      { key: 'demu', label: 'Demu' },
+                      { key: 'knee', label: 'Knee' },
+                      { key: 'gher', label: 'Gher' },
+                      { key: 'side', label: 'Side' },
+                      { key: 'secom', label: 'Secom' },
                     ].map((item) => (
                       <div
                         key={item.key}
@@ -576,6 +588,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                             color: 'var(--text-muted)',
                             display: 'block',
                             marginBottom: '2px',
+                            fontWeight: 700
                           }}
                         >
                           {item.label}
@@ -592,8 +605,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                             <Minus size={11} />
                           </button>
                           <input
-                            type="number"
-                            step="0.1"
+                            type="text"
                             className="profile-spec-input font-mono"
                             value={sizingData[item.key] || ''}
                             onChange={(e) => {
@@ -720,77 +732,17 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                     />
                   </svg>
 
-                  {/* Measurement Pins */}
-                  <div
-                    onClick={() => setActiveMeasurementField('chest')}
-                    style={{
-                      position: 'absolute',
-                      top: '80px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background:
-                        activeMeasurementField === 'chest' ? 'var(--accent-gold)' : 'var(--primary)',
-                      color: '#000',
-                      padding: '2px 6px',
-                      borderRadius: '10px',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Chest {sizingData.chest}"
-                  </div>
-
-                  <div
-                    onClick={() => setActiveMeasurementField('waist')}
-                    style={{
-                      position: 'absolute',
-                      top: '120px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background:
-                        activeMeasurementField === 'waist' ? 'var(--accent-gold)' : 'var(--primary)',
-                      color: '#000',
-                      padding: '2px 6px',
-                      borderRadius: '10px',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Waist {sizingData.waist}"
-                  </div>
-
-                  <div
-                    onClick={() => setActiveMeasurementField('trouserLength')}
-                    style={{
-                      position: 'absolute',
-                      top: '240px',
-                      right: '10px',
-                      background:
-                        activeMeasurementField === 'trouserLength'
-                          ? 'var(--accent-gold)'
-                          : '#10B981',
-                      color: '#000',
-                      padding: '2px 6px',
-                      borderRadius: '10px',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Length {sizingData.trouserLength}"
-                  </div>
-
+                  {/* Measurement Pins (Matching POS Sizing Keys) */}
                   {[
-                    { key: 'collar', label: 'Collar', top: '42px', left: '50%' },
-                    { key: 'bicep', label: 'Bicep', top: '132px', left: '0' },
-                    { key: 'wristCuff', label: 'Cuff', top: '184px', left: '0' },
-                    { key: 'thigh', label: 'Thigh', top: '218px', left: '50%' },
-                    { key: 'bottomHem', label: 'Hem', top: '332px', left: '50%' },
+                    { key: 'length', label: 'Length', top: '25px', left: '15px' },
+                    { key: 'shoulder', label: 'Shoulder', top: '55px', left: '85%' },
+                    { key: 'chest', label: 'Chest', top: '85px', left: '50%' },
+                    { key: 'sleeve', label: 'Sleeve', top: '125px', left: '15px' },
+                    { key: 'waist', label: 'Waist', top: '135px', left: '50%' },
+                    { key: 'hip', label: 'Hip', top: '175px', left: '50%' },
+                    { key: 'thigh', label: 'Thigh', top: '220px', left: '75%' },
+                    { key: 'knee', label: 'Knee', top: '275px', left: '80%' },
+                    { key: 'gher', label: 'Gher', top: '345px', left: '50%' },
                   ].map((pin) => (
                     <div
                       key={pin.key}
@@ -801,16 +753,18 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                         left: pin.left,
                         transform: pin.left === '50%' ? 'translateX(-50%)' : undefined,
                         background: activeMeasurementField === pin.key ? 'var(--accent-gold)' : 'var(--primary)',
-                        color: '#000',
-                        padding: '2px 5px',
+                        color: activeMeasurementField === pin.key ? '#000' : '#FFF',
+                        padding: '2px 6px',
                         borderRadius: '10px',
-                        fontSize: '0.6rem',
+                        fontSize: '0.62rem',
                         fontWeight: 800,
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                        zIndex: 2,
                       }}
                     >
-                      {pin.label} {sizingData[pin.key]}"
+                      {pin.label} {sizingData[pin.key] ? `${sizingData[pin.key]}"` : '—'}
                     </div>
                   ))}
                 </div>
@@ -818,24 +772,30 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                 {isSizingBreakdownOpen && (
                   <div style={{ width: '100%', marginTop: '14px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                      Complete Upper & Body Specifications
+                      Complete Upper & Lower POS Sizing Specifications
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px' }}>
                       {[
-                        ['collar', 'Collar / Neck'],
-                        ['chest', 'Chest / Bust'],
-                        ['waist', 'Stomach / Waist'],
-                        ['hip', 'Seat / Hip'],
-                        ['shoulder', 'Shoulder Width'],
-                        ['sleeveLength', 'Sleeve Length'],
-                        ['bicep', 'Bicep / Armhole'],
-                        ['wristCuff', 'Wrist Cuff'],
-                        ['shirtLength', 'Jacket/Shirt Length'],
-                        ['trouserWaist', 'Trouser Waist'],
-                        ['trouserLength', 'Outseam Length'],
-                        ['inseam', 'Inseam / Crotch'],
-                        ['thigh', 'Thigh Width'],
-                        ['bottomHem', 'Ankle / Bottom Hem'],
+                        ['length', 'Length'],
+                        ['chest', 'Chest'],
+                        ['waist', 'Waist'],
+                        ['shoulder', 'Shoulder'],
+                        ['sleeve', 'Sleeve'],
+                        ['muhuri', 'Muhuri'],
+                        ['fNeck', 'F. Neck'],
+                        ['bNeck', 'B. Neck'],
+                        ['thigh', 'Thigh'],
+                        ['armpit', 'Armpit'],
+                        ['hai', 'Hai'],
+                        ['hip', 'Hip'],
+                        ['lining', 'Lining'],
+                        ['hbl', 'H.B.L.'],
+                        ['bp', 'B. P.'],
+                        ['demu', 'Demu'],
+                        ['knee', 'Knee'],
+                        ['gher', 'Gher'],
+                        ['side', 'Side'],
+                        ['secom', 'Secom'],
                       ].map(([key, label]) => (
                         <button
                           key={key}
@@ -849,7 +809,7 @@ export const CustomerProfileModal = ({ isOpen, onClose, customer }) => {
                           style={{ minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', textAlign: 'left', fontSize: '0.68rem', padding: '6px 8px', overflow: 'hidden' }}
                         >
                           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                          <strong className="font-mono" style={{ flexShrink: 0 }}>{sizingData[key]}&quot;</strong>
+                          <strong className="font-mono" style={{ flexShrink: 0 }}>{sizingData[key] ? `${sizingData[key]}"` : '—'}</strong>
                         </button>
                       ))}
                     </div>
