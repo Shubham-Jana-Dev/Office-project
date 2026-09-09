@@ -25,6 +25,7 @@ def create_employee():
         pay_type=data.get('payType', 'piece_rate'),
         base_salary=data.get('baseSalary', 500),
         piece_rate_unit=data.get('pieceRateUnit', 28.5),
+        piece_rate_per_item=data.get('pieceRatePerItem', {}),
         overtime_rate_per_hour=data.get('overtimeRatePerHour', 8),
         avatar=data.get('avatar', '👤'),
         status=data.get('status', 'Active'),
@@ -133,6 +134,8 @@ def update_salary(emp_id):
     data = request.get_json() or {}
     if 'baseSalary' in data: emp.base_salary = data['baseSalary']
     if 'pieceRateUnit' in data: emp.piece_rate_unit = data['pieceRateUnit']
+    if 'pieceRatePerItem' in data or 'piece_rate_per_item' in data:
+        emp.piece_rate_per_item = data.get('pieceRatePerItem') or data.get('piece_rate_per_item')
     if 'piecesCompletedThisMonth' in data: emp.pieces_completed_this_month = data['piecesCompletedThisMonth']
     if 'salesAchievedThisMonth' in data: emp.sales_achieved_this_month = data['salesAchievedThisMonth']
     if 'salesCommissionRate' in data: emp.sales_commission_rate = data['salesCommissionRate']
@@ -158,6 +161,8 @@ def update_employee(emp_id):
             if source == 'role' and data[source] not in EMPLOYEE_ROLES:
                 return jsonify({'error': f'Invalid role. Choose one of: {", ".join(EMPLOYEE_ROLES)}'}), 400
             setattr(emp, target, data[source])
+    if 'pieceRatePerItem' in data or 'piece_rate_per_item' in data:
+        emp.piece_rate_per_item = data.get('pieceRatePerItem') or data.get('piece_rate_per_item')
     db.session.commit()
     return jsonify(emp.to_dict()), 200
 
@@ -169,11 +174,27 @@ def grant_advance_loan(emp_id):
 
     data = request.get_json() or {}
     amount = float(data.get('amount', 0))
-    deduction = float(data.get('monthlyDeduction', 50))
 
     emp.advance_loan_total = float(emp.advance_loan_total or 0) + amount
     emp.advance_loan_remaining = float(emp.advance_loan_remaining or 0) + amount
-    emp.advance_loan_deduction_per_month = deduction
+
+    db.session.commit()
+    return jsonify(emp.to_dict()), 200
+
+@employees_bp.route('/<string:emp_id>/repay-loan', methods=['POST'])
+def repay_advance_loan(emp_id):
+    emp = Employee.query.filter((Employee.id == emp_id) | (Employee.emp_id == emp_id)).first()
+    if not emp:
+        return jsonify({'error': 'Employee not found'}), 404
+
+    data = request.get_json() or {}
+    amount = float(data.get('amount', 0))
+
+    if emp.advance_loan_remaining:
+        emp.advance_loan_remaining = max(0, float(emp.advance_loan_remaining) - amount)
+        if emp.advance_loan_remaining == 0:
+            emp.advance_loan_total = 0
+            emp.advance_loan_deduction_per_month = 0
 
     db.session.commit()
     return jsonify(emp.to_dict()), 200
@@ -186,11 +207,24 @@ def get_attendance():
 @employees_bp.route('/attendance', methods=['POST'])
 def log_attendance():
     data = request.get_json() or {}
+    emp_id = data.get('empId')
+    date_val = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+    
+    existing = Attendance.query.filter_by(emp_id=emp_id, date=date_val).first() if emp_id else None
+    if existing:
+        if 'status' in data: existing.status = data['status']
+        if 'inTime' in data: existing.in_time = data['inTime']
+        if 'outTime' in data: existing.out_time = data['outTime']
+        if 'otHours' in data: existing.ot_hours = data['otHours']
+        if 'notes' in data: existing.notes = data['notes']
+        db.session.commit()
+        return jsonify(existing.to_dict()), 200
+
     record = Attendance(
         id=f"ATT-{Attendance.query.count() + 101}",
-        emp_id=data.get('empId'),
-        emp_name=data.get('empName'),
-        date=data.get('date'),
+        emp_id=emp_id,
+        emp_name=data.get('empName', 'Staff Member'),
+        date=date_val,
         in_time=data.get('inTime', ''),
         out_time=data.get('outTime', ''),
         status=data.get('status', 'Present'),
@@ -208,16 +242,38 @@ def update_attendance(attendance_id):
         return jsonify({'error': 'Attendance record not found'}), 404
 
     data = request.get_json() or {}
-    if data.get('action') == 'checkIn':
-        record.in_time = datetime.now().strftime('%I:%M %p')
-    elif data.get('action') == 'checkOut':
-        record.out_time = datetime.now().strftime('%I:%M %p')
+    action = data.get('action')
+    now_str = datetime.now().strftime('%I:%M %p')
 
-    if 'status' in data: record.status = data['status']
-    if 'inTime' in data: record.in_time = data['inTime']
-    if 'outTime' in data: record.out_time = data['outTime']
-    if 'otHours' in data: record.ot_hours = data['otHours']
-    if 'notes' in data: record.notes = data['notes']
+    if action == 'markPresent':
+        record.status = 'Present'
+        if not record.in_time or record.in_time == '— Absent —':
+            record.in_time = now_str
+        record.out_time = '' # Clear stale out_time so shift is active
+    elif action == 'markAbsent':
+        record.status = 'Absent'
+        record.in_time = ''
+        record.out_time = ''
+        record.ot_hours = 0.0
+    elif action in ('checkIn', 'reStampIn'):
+        record.in_time = now_str
+        if record.status == 'Absent':
+            record.status = 'Present'
+    elif action in ('checkOut', 'reStampOut'):
+        record.out_time = now_str
+        if record.status == 'Absent':
+            record.status = 'Present'
+
+    if 'status' in data and action not in ('markPresent', 'markAbsent'):
+        record.status = data['status']
+    if 'inTime' in data and action not in ('markPresent', 'markAbsent', 'checkIn', 'reStampIn'):
+        record.in_time = data['inTime']
+    if 'outTime' in data and action not in ('markPresent', 'markAbsent', 'checkOut', 'reStampOut'):
+        record.out_time = data['outTime']
+    if 'otHours' in data and action != 'markAbsent':
+        record.ot_hours = data['otHours']
+    if 'notes' in data:
+        record.notes = data['notes']
 
     db.session.commit()
     return jsonify(record.to_dict()), 200

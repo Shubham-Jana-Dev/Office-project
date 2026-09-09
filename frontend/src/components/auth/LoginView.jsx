@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { SHOP_DETAILS } from '../../config/constants';
 import {
   Scissors,
   Lock,
@@ -114,7 +115,7 @@ export const LoginView = () => {
             <Scissors size={28} color="#FFFFFF" />
           </div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '6px' }}>
-            THREADCRAFT <span style={{ color: 'var(--primary)' }}>PRO</span>
+            {SHOP_DETAILS.name.split(' ')[0].toUpperCase()} <span style={{ color: 'var(--primary)' }}>{SHOP_DETAILS.name.split(' ').slice(1).join(' ').toUpperCase()}</span>
           </h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Garment ERP, Bespoke Tailoring & POS Hub
@@ -202,6 +203,19 @@ export const LoginView = () => {
 
         {/* 1-Click Role Logins */}
         <div className="mobile-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => handleQuickLogin('super_admin')}
+            style={{ justifyContent: 'flex-start', padding: '8px 10px', fontSize: '0.75rem', gridColumn: 'span 2', background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.4)' }}
+          >
+            <span>⚡</span>
+            <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+              <div style={{ fontWeight: 800, color: 'var(--primary)' }}>Super Admin</div>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>Products, Raw Materials & Manufacturing Incentives Controls</span>
+            </div>
+          </button>
+
           <button
             type="button"
             className="btn btn-secondary btn-sm"

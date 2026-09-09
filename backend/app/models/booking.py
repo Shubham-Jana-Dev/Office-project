@@ -9,6 +9,7 @@ class OrderBooking(db.Model):
     customer_id = db.Column(db.String(50), db.ForeignKey('customers.id'), nullable=True)
     customer_name = db.Column(db.String(150), nullable=False)
     customer_phone = db.Column(db.String(50), nullable=True)
+    customer_address = db.Column(db.Text, nullable=True)
     garment_type = db.Column(db.String(150), nullable=False)
     fabric_details = db.Column(db.String(255), nullable=True)
     booking_date = db.Column(db.String(50), nullable=True)
@@ -21,6 +22,7 @@ class OrderBooking(db.Model):
     assigned_master = db.Column(db.String(150), nullable=True)
     assigned_employees = db.Column(db.JSON, nullable=True)
     special_instructions = db.Column(db.Text, nullable=True)
+    work_types = db.Column(db.JSON, nullable=True)
     measurement_id = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -38,6 +40,7 @@ class OrderBooking(db.Model):
             'customerId': self.customer_id,
             'customerName': self.customer_name,
             'customerPhone': self.customer_phone,
+            'customerAddress': self.customer_address,
             'garmentType': self.garment_type,
             'fabricDetails': self.fabric_details,
             'bookingDate': self.booking_date,
@@ -50,6 +53,7 @@ class OrderBooking(db.Model):
             'assignedMaster': self.assigned_master,
             'assignedEmployees': self.assigned_employees or [],
             'specialInstructions': self.special_instructions,
+            'workTypes': self.work_types or [],
             'measurementId': self.measurement_id,
             'currentStage': current_stage,
         }

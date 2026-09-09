@@ -10,9 +10,11 @@ import {
   Wallet,
   Building2,
   Users,
+  FileText,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { VoucherModal } from './VoucherModal';
+import { ReceiptModal } from '../pos/ReceiptModal';
 import { StatCard } from '../common/StatCard';
 
 export const LedgerView = () => {
@@ -20,6 +22,7 @@ export const LedgerView = () => {
   const [filterType, setFilterType] = useState('All'); // 'All', 'Customer', 'Supplier', 'Expense'
   const [searchQuery, setSearchQuery] = useState('');
   const [isVoucherOpen, setIsVoucherOpen] = useState(false);
+  const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState(null);
 
   // Filtered Ledger Entries
   const filteredEntries = ledgerEntries.filter((entry) => {
@@ -130,12 +133,13 @@ export const LedgerView = () => {
               <th>Narration / Details</th>
               <th>Debit (Dr)</th>
               <th>Credit (Cr)</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
                   No ledger entries found matching current filter.
                 </td>
               </tr>
@@ -182,6 +186,26 @@ export const LedgerView = () => {
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setSelectedOrderForReceipt({
+                          invoiceNo: entry.refNo || entry.id,
+                          date: formatDate(entry.date),
+                          customerName: entry.partyName,
+                          customerPhone: 'N/A',
+                          items: [{ name: entry.description, quantity: 1, price: entry.amount }],
+                          total: entry.amount,
+                          advance: entry.type === 'Credit' ? entry.amount : 0,
+                          paymentMethod: 'N/A'
+                        });
+                      }}
+                      title="Show Bill"
+                    >
+                      <FileText size={13} /> Show Bill
+                    </button>
                   </td>
                 </tr>
               ))
@@ -262,6 +286,26 @@ export const LedgerView = () => {
                   {entry.type === 'Credit' ? '+' : '-'}{formatCurrency(entry.amount, currency)}
                 </strong>
               </div>
+              <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    setSelectedOrderForReceipt({
+                      invoiceNo: entry.refNo || entry.id,
+                      date: formatDate(entry.date),
+                      customerName: entry.partyName,
+                      customerPhone: 'N/A',
+                      items: [{ name: entry.description, quantity: 1, price: entry.amount }],
+                      total: entry.amount,
+                      advance: entry.type === 'Credit' ? entry.amount : 0,
+                      paymentMethod: 'N/A'
+                    });
+                  }}
+                >
+                  <FileText size={13} /> Show Bill
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -269,6 +313,13 @@ export const LedgerView = () => {
 
       {/* Voucher Modal */}
       <VoucherModal isOpen={isVoucherOpen} onClose={() => setIsVoucherOpen(false)} />
+
+      <ReceiptModal
+        isOpen={Boolean(selectedOrderForReceipt)}
+        onClose={() => setSelectedOrderForReceipt(null)}
+        order={selectedOrderForReceipt}
+        currency={currency}
+      />
     </div>
   );
 };

@@ -78,7 +78,17 @@ export const AttendanceModal = ({ isOpen, onClose }) => {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <div>
-            <label className="form-label">Clock-In Time</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-label">Clock-In Time</label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-xs"
+                style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                onClick={() => setInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }))}
+              >
+                Now
+              </button>
+            </div>
             <input
               type="text"
               className="form-input"
@@ -87,7 +97,17 @@ export const AttendanceModal = ({ isOpen, onClose }) => {
             />
           </div>
           <div>
-            <label className="form-label">Clock-Out Time</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-label">Clock-Out Time</label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-xs"
+                style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                onClick={() => setOutTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }))}
+              >
+                Now
+              </button>
+            </div>
             <input
               type="text"
               className="form-input"

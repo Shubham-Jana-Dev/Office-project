@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = '650px' }) => {
+export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = '650px', zIndex }) => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -15,7 +15,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = '65
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} style={zIndex ? { zIndex } : undefined}>
       <div
         className="modal-content"
         style={{ maxWidth }}

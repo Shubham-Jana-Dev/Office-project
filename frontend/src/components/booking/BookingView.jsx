@@ -23,15 +23,19 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { NewBookingModal } from './NewBookingModal';
 import { CustomerModal } from '../common/CustomerModal';
 import { CustomerProfileModal } from '../customer/CustomerProfileModal';
+import { ReceiptModal } from '../pos/ReceiptModal';
+import { TailorCounterView } from '../pos/TailorCounterView';
 import { StatCard } from '../common/StatCard';
 import { exportTailorJobCardPDF } from '../../utils/pdfGenerator';
 
 export const BookingView = () => {
   const { orderBookings, updateBookingStatus, measurements, customers, deleteCustomer, currency } = useApp();
+  const [viewMode, setViewMode] = useState('counter'); // 'counter' or 'list'
   const [mainTab, setMainTab] = useState('bookings'); // 'bookings' or 'clients'
   const [isNewBookingOpen, setIsNewBookingOpen] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   const [selectedCustomerFor360, setSelectedCustomerFor360] = useState(null);
+  const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All');
   const [bookingSearch, setBookingSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -77,23 +81,46 @@ export const BookingView = () => {
 
   return (
     <div className="view-container">
-      {/* Header */}
-      <div className="responsive-header-row">
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Order Booking & Bespoke Tailoring</h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Advance custom order bookings, deposit collection, trial fitting scheduling & client registry
-          </p>
-        </div>
-        <div className="responsive-header-actions" style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={() => setIsNewCustomerOpen(true)}>
-            <UserPlus size={16} /> + Register New Client
-          </button>
-          <button className="btn btn-primary" onClick={() => setIsNewBookingOpen(true)}>
-            <Plus size={16} /> Book Custom Tailoring Order
-          </button>
-        </div>
+      {/* Mode Switcher Tabs */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <button
+          className={`btn ${viewMode === 'counter' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setViewMode('counter')}
+          style={{ padding: '10px 18px', fontWeight: 700 }}
+        >
+          ⚡ Express Counter Booking & Sizing (Simple Mode)
+        </button>
+        <button
+          className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setViewMode('list')}
+          style={{ padding: '10px 18px', fontWeight: 700 }}
+        >
+          📋 Bookings Registry & Active Orders ({orderBookings.length})
+        </button>
       </div>
+
+      {viewMode === 'counter' ? (
+        <TailorCounterView onNavigateToHistory={() => setViewMode('list')} />
+      ) : (
+        <div className="booking-list-wrapper">
+          {/* Header */}
+          <div className="responsive-header-row">
+            <div>
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Order Booking & Bespoke Tailoring</h1>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Advance custom order bookings, deposit collection, trial fitting scheduling & client registry
+              </p>
+            </div>
+            <div className="responsive-header-actions" style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn btn-secondary" onClick={() => setIsNewCustomerOpen(true)}>
+                <UserPlus size={16} /> + Register New Client
+              </button>
+              <button className="btn btn-primary" onClick={() => setIsNewBookingOpen(true)}>
+                <Plus size={16} /> Book Custom Tailoring Order
+              </button>
+            </div>
+          </div>
+
 
       {/* KPI Stats */}
       <div className="stats-grid">
@@ -158,7 +185,7 @@ export const BookingView = () => {
           </div>
 
           <div className="pos-category-pills booking-category-pills">
-            {['All', 'Booked', 'In Production', 'Ready for Trial', 'Delivered'].map((status) => {
+            {['All', 'In Production', 'Awaiting Supplier Inward', 'Ready for Trial', 'Delivered'].map((status) => {
               const count =
                 status === 'All'
                   ? orderBookings.length
@@ -298,6 +325,29 @@ export const BookingView = () => {
                           >
                             <Download size={13} /> Job Card
                           </button>
+                          
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              setSelectedOrderForReceipt({
+                                invoiceNo: b.bookingNo || b.id,
+                                date: formatDate(b.bookingDate || b.date),
+                                customerName: b.customerName,
+                                customerPhone: b.customerPhone,
+                                customerAddress: b.customerAddress,
+                                items: [{ name: b.garmentType + (b.fabricDetails ? ' - ' + b.fabricDetails : ''), quantity: 1, price: b.totalAmount }],
+                                total: b.totalAmount,
+                                advancePaid: b.advancePaid,
+                                balanceDue: b.balanceDue,
+                                workTypes: b.workTypes || [],
+                                paymentMethod: b.status === 'Delivered' ? 'Full Settlement' : 'Advance Deposit'
+                              });
+                            }}
+                            title="Show Bill"
+                          >
+                            <FileText size={13} /> Show Bill
+                          </button>
+
 
                           {b.status !== 'Delivered' && (
                             <button
@@ -392,6 +442,27 @@ export const BookingView = () => {
                       onClick={() => handleJobCardDownload(b)}
                     >
                       <Download size={13} /> Job Card
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        setSelectedOrderForReceipt({
+                          invoiceNo: b.bookingNo || b.id,
+                          date: formatDate(b.bookingDate || b.date),
+                          customerName: b.customerName,
+                          customerPhone: b.customerPhone,
+                          customerAddress: b.customerAddress,
+                          items: [{ name: b.garmentType + (b.fabricDetails ? ' - ' + b.fabricDetails : ''), quantity: 1, price: b.totalAmount }],
+                          total: b.totalAmount,
+                          advancePaid: b.advancePaid,
+                          balanceDue: b.balanceDue,
+                          workTypes: b.workTypes || [],
+                          paymentMethod: b.status === 'Delivered' ? 'Full Settlement' : 'Advance Deposit'
+                        });
+                      }}
+                    >
+                      <FileText size={13} /> Show Bill
                     </button>
                     {b.status !== 'Delivered' && (
                       <button
@@ -496,6 +567,8 @@ export const BookingView = () => {
             ))}
         </div>
       )}
+      </div>
+      )}
 
       {/* Modals */}
       <NewBookingModal isOpen={isNewBookingOpen} onClose={() => setIsNewBookingOpen(false)} />
@@ -504,6 +577,12 @@ export const BookingView = () => {
         isOpen={Boolean(selectedCustomerFor360)}
         onClose={() => setSelectedCustomerFor360(null)}
         customer={selectedCustomerFor360}
+      />
+      <ReceiptModal
+        isOpen={Boolean(selectedOrderForReceipt)}
+        onClose={() => setSelectedOrderForReceipt(null)}
+        order={selectedOrderForReceipt}
+        currency={currency}
       />
     </div>
   );

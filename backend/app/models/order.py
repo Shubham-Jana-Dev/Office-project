@@ -101,9 +101,22 @@ class PurchaseOrder(db.Model):
     total_amount = db.Column(db.Numeric(10, 2), default=0.00)
     status = db.Column(db.String(50), default='Pending') # Received, Pending, Partially Received
     items_data = db.Column(db.JSON, nullable=True)
+    supplier_invoice_no = db.Column(db.String(100), nullable=True)
+    supplier_invoice_date = db.Column(db.String(50), nullable=True)
+    supplier_invoice_file = db.Column(db.Text, nullable=True)
+    supplier_invoice_name = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
+        items_dict = self.items_data or {}
+        meta = items_dict if isinstance(items_dict, dict) else {}
+        items_list = items_dict.get('items', []) if isinstance(items_dict, dict) else (self.items_data if isinstance(self.items_data, list) else [])
+
+        invoice_no = self.supplier_invoice_no or meta.get('supplierInvoiceNo')
+        invoice_date = self.supplier_invoice_date or meta.get('supplierInvoiceDate')
+        invoice_file = self.supplier_invoice_file or meta.get('supplierInvoiceFile')
+        invoice_name = self.supplier_invoice_name or meta.get('supplierInvoiceName')
+
         return {
             'id': self.id,
             'poNo': self.po_no,
@@ -113,5 +126,10 @@ class PurchaseOrder(db.Model):
             'expectedDelivery': self.expected_delivery,
             'totalAmount': float(self.total_amount) if self.total_amount is not None else 0.0,
             'status': self.status,
-            'items': self.items_data or [],
+            'items': items_list,
+            'supplierInvoiceNo': invoice_no,
+            'supplierInvoiceDate': invoice_date,
+            'supplierInvoiceFile': invoice_file,
+            'supplierInvoiceName': invoice_name,
         }
+

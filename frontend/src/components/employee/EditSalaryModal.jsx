@@ -17,7 +17,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 
 export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => {
-  const { updateEmployee, updateEmployeeSalary, currency, attendance } = useApp();
+  const { updateEmployee, updateEmployeeSalary, currency, attendance, products } = useApp();
 
   // Controlled states for all salary components
   const [baseSalary, setBaseSalary] = useState('');
@@ -37,6 +37,13 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
   const [customDeduction, setCustomDeduction] = useState('0.00');
   const [customDeductionNote, setCustomDeductionNote] = useState('');
   const [role, setRole] = useState('Master Tailor');
+
+  // Per-item manufacturing incentive mapping for this employee
+  const [itemIncentives, setItemIncentives] = useState({});
+
+  // Filter finished products
+  const RAW_CATEGORIES = ['Raw Fabrics', 'Raw Materials', 'Threads & Trims', 'Lining', 'Trims & Accessories'];
+  const finishedProducts = (products || []).filter((p) => !RAW_CATEGORIES.includes(p.category));
 
   // Synchronize initial values when employee opens
   useEffect(() => {
@@ -75,6 +82,8 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
 
       setCustomDeduction(String(employee.customDeduction ?? 0));
       setCustomDeductionNote(employee.customDeductionNote || '');
+
+      setItemIncentives(employee.pieceRatePerItem || {});
     }
   }, [employee, attendance]);
 
@@ -112,12 +121,20 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
   const totalDeductions = numAdvanceDed + numLeaveDed + numTaxDed + numCustomDed;
   const netPay = Math.max(0, grossEarnings - totalDeductions);
 
+  const handleIncentiveChange = (productName, value) => {
+    setItemIncentives((prev) => ({
+      ...prev,
+      [productName]: Number(value) || 0,
+    }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     updateEmployeeSalary(employee.id, {
       baseSalary: numBase,
       piecesCompletedThisMonth: numPieces,
       pieceRateUnit: numPieceRate,
+      pieceRatePerItem: itemIncentives,
       salesAchievedThisMonth: numSales,
       salesCommissionRate: numCommRate,
       manualOtHours: numOtHours,
@@ -543,6 +560,59 @@ export const EditSalaryModal = ({ isOpen, onClose, employee, payrollMonth }) => 
                 Statutory / standard deduction
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Section 7: Product Manufacturing Incentive Rates */}
+        <div className="card" style={{ padding: '14px', margin: 0, background: 'var(--bg-surface)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <label className="form-label" style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Scissors size={16} color="#34D399" />
+              7. Product Manufacturing Incentive Rates for {employee.name}
+            </label>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Editable incentive per product made
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
+            {finishedProducts.map((prod) => {
+              const currentVal = itemIncentives[prod.name] !== undefined
+                ? itemIncentives[prod.name]
+                : (prod.name.toLowerCase().includes('suit') ? 500 : prod.name.toLowerCase().includes('sherwani') ? 400 : 200);
+
+              return (
+                <div
+                  key={prod.id}
+                  style={{
+                    background: 'var(--bg-surface-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {prod.name}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#34D399', fontWeight: 700 }}>₹</span>
+                    <input
+                      type="number"
+                      step="10"
+                      min="0"
+                      className="form-input font-mono"
+                      style={{ width: '70px', padding: '3px 6px', fontSize: '0.8rem', fontWeight: 700 }}
+                      value={currentVal}
+                      onChange={(e) => handleIncentiveChange(prod.name, e.target.value)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

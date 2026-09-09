@@ -25,6 +25,7 @@ def _assigned_employees(data):
                 'employeeId': employee.id if employee else None,
                 'employeeName': employee.name if employee else assignment,
                 'role': employee.role if employee else None,
+                'incentiveRate': None,
             })
             continue
 
@@ -38,10 +39,12 @@ def _assigned_employees(data):
         if not employee_name and employee:
             employee_name = employee.name
         if employee_name:
+            inc = assignment.get('incentiveRate') if assignment.get('incentiveRate') is not None else assignment.get('incentive_rate')
             assignments.append({
                 'employeeId': employee.id if employee else employee_key,
                 'employeeName': employee_name,
                 'role': assignment.get('role') or (employee.role if employee else None),
+                'incentiveRate': float(inc) if inc is not None else None,
             })
     return assignments
 
@@ -49,15 +52,18 @@ def _assigned_employees(data):
 def _replace_booking_jobs(booking, assignments):
     MasterJobAssignment.query.filter_by(booking_id=booking.id).delete(synchronize_session='fetch')
     garment = booking.garment_type.lower()
-    incentive = 500.00 if 'suit' in garment else 400.00 if 'sherwani' in garment else 200.00
+    default_incentive = 500.00 if 'suit' in garment else 400.00 if 'sherwani' in garment else 200.00
     for index, assignment in enumerate(assignments):
+        inc_rate = assignment.get('incentiveRate')
+        if inc_rate is None:
+            inc_rate = default_incentive
         db.session.add(MasterJobAssignment(
             id=f"JOB-{booking.id}-{index + 1}",
             booking_id=booking.id,
             master_id=assignment.get('employeeId'),
             master_name=assignment['employeeName'],
             garment_type=booking.garment_type,
-            incentive_rate=assignment.get('incentiveRate', incentive),
+            incentive_rate=inc_rate,
             work_status='ASSIGNED',
             payout_status='PENDING_DELIVERY',
         ))
@@ -108,6 +114,7 @@ def create_booking():
         customer_id=data.get('customerId'),
         customer_name=data.get('customerName', 'Guest Client'),
         customer_phone=data.get('customerPhone'),
+        customer_address=data.get('customerAddress') or data.get('customer_address'),
         garment_type=data.get('garmentType', 'Custom Tailoring'),
         fabric_details=data.get('fabricDetails'),
         booking_date=data.get('bookingDate', datetime.utcnow().strftime('%Y-%m-%d')),
@@ -120,11 +127,12 @@ def create_booking():
         assigned_master=assignments[0]['employeeName'] if assignments else data.get('assignedMaster'),
         assigned_employees=assignments,
         special_instructions=data.get('specialInstructions'),
+        work_types=data.get('workTypes', []),
         measurement_id=data.get('measurementId'),
     )
     db.session.add(booking)
 
-    initial_stage = data.get('initialStage', 'Fabric Sourcing & Inward')
+    initial_stage = data.get('currentStage', data.get('initialStage', 'Cutting stage'))
     db.session.add(ProductStage(
         id=f"STG-{new_id}",
         batch_no=f"LOT-{booking_no}",
@@ -138,7 +146,7 @@ def create_booking():
         target_date=data.get('deliveryDate'),
         progress=15,
         qc_status='In Progress',
-        notes=data.get('specialInstructions', ''),
+        notes=data.get('specialInstructions', data.get('notes', '')),
         history=[{
             'stage': initial_stage,
             'date': datetime.utcnow().strftime('%Y-%m-%d'),
@@ -150,12 +158,14 @@ def create_booking():
     # Automatically create a MasterJobAssignment tracking delivery-linked bonus
     _replace_booking_jobs(booking, assignments)
 
-    # FIX 1: Create ProductionJob (IN_PROGRESS) for each assigned employee so
-    # their Production & Earnings History is populated from the moment of booking.
+    # Create ProductionJob (IN_PROGRESS) for each assigned employee
     garment_lower = data.get('garmentType', '').lower()
-    piece_rate = 500.00 if 'suit' in garment_lower else 400.00 if 'sherwani' in garment_lower else 200.00
+    default_piece_rate = 500.00 if 'suit' in garment_lower else 400.00 if 'sherwani' in garment_lower else 200.00
     booking_stage_id = f"STG-{new_id}"
     for idx, assignment in enumerate(assignments):
+        inc_rate = assignment.get('incentiveRate')
+        if inc_rate is None:
+            inc_rate = default_piece_rate
         db.session.add(ProductionJob(
             id=f"PJOB-{new_id}-{idx + 1}",
             stage_id=booking_stage_id,
@@ -163,7 +173,7 @@ def create_booking():
             employee_name=assignment['employeeName'],
             project_name=data.get('garmentType', 'Custom Tailoring'),
             quantity=1,
-            agreed_amount=piece_rate,
+            agreed_amount=inc_rate,
             status='IN_PROGRESS',
         ))
 

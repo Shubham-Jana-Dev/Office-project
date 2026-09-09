@@ -99,6 +99,7 @@ export const productsApi = {
   getByBarcode: (code) => api.get(`/products/barcode/${encodeURIComponent(code)}`),
   create: (data) => api.post('/products', data),
   update: (id, data) => api.put(`/products/${id}`, data),
+  delete: (id) => api.delete(`/products/${id}`),
 };
 
 export const posApi = {
@@ -124,8 +125,10 @@ export const employeesApi = {
   create: (data) => api.post('/employees', data),
   update: (empId, updates) => api.patch(`/employees/${empId}`, updates),
   updateSalary: (empId, updates) => api.patch(`/employees/${empId}/salary`, updates),
-  grantAdvanceLoan: (empId, amount, monthlyDeduction) =>
-    api.post(`/employees/${empId}/advance-loan`, { amount, monthlyDeduction }),
+  grantAdvanceLoan: (empId, amount) =>
+    api.post(`/employees/${empId}/advance-loan`, { amount }),
+  repayAdvanceLoan: (empId, amount) =>
+    api.post(`/employees/${empId}/repay-loan`, { amount }),
   getAttendance: () => api.get('/employees/attendance'),
   logAttendance: (record) => api.post('/employees/attendance', record),
   updateAttendance: (attendanceId, updates) => api.patch(`/employees/attendance/${attendanceId}`, updates),
@@ -157,4 +160,6 @@ export const purchasesApi = {
   getOrders: () => api.get('/purchases/orders'),
   createOrder: (data) => api.post('/purchases/orders', data),
   receiveOrder: (id) => api.post(`/purchases/orders/${id}/receive`, {}),
+  uploadInvoice: (id, data) => api.post(`/purchases/orders/${id}/invoice`, data),
 };
+

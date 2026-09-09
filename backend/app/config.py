@@ -86,7 +86,7 @@ class Config:
         },
         'pool_pre_ping': True,      # drop stale connections before use
         'pool_recycle': 280,        # recycle before Aiven's 5-min idle timeout
-    }
+    } if SQLALCHEMY_DATABASE_URI.startswith('mysql') else {}
 
     # ------------------------------------------------------------------ #
     # JWT                                                                  #
