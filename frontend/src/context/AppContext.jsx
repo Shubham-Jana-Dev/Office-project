@@ -67,7 +67,9 @@ export const AppProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // UI State
-  const [activeTab, setActiveTab] = useState('pos'); // pos, purchase, profit, ledger, stages, measurement, booking, employee
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('tc_active_tab') || 'pos';
+  }); // pos, purchase, profit, ledger, stages, measurement, booking, employee
   const currency = 'INR';
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('tc_theme') || 'dark';
@@ -85,6 +87,13 @@ export const AppProvider = ({ children }) => {
     setMeasurementHubField(field);
     setActiveTab('measurement');
   };
+
+  // Sync activeTab to localStorage
+  useEffect(() => {
+    if (activeTab) {
+      localStorage.setItem('tc_active_tab', activeTab);
+    }
+  }, [activeTab]);
 
   // Apply theme to root document
   useEffect(() => {
@@ -154,11 +163,7 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const toggleTheme = () => {
-    setTheme((prev) => {
-      const nextTheme = prev === 'dark' ? 'light' : 'dark';
-      showToast(`Switched to ${nextTheme === 'light' ? 'Minimalist Light' : 'Midnight Dark'} Mode`, 'info');
-      return nextTheme;
-    });
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   // Authentication & Login Operations
@@ -170,7 +175,12 @@ export const AppProvider = ({ children }) => {
       showToast(`Welcome back, ${user.name}! [${user.role}]`, 'success');
       // Switch to first permitted tab
       if (user.permissions && user.permissions.length > 0) {
-        setActiveTab(user.permissions[0]);
+        const savedTab = localStorage.getItem('tc_active_tab');
+        if (savedTab && user.permissions.includes(savedTab)) {
+          setActiveTab(savedTab);
+        } else {
+          setActiveTab(user.permissions[0]);
+        }
       }
       return { success: true, user };
     } catch (error) {
@@ -187,7 +197,12 @@ export const AppProvider = ({ children }) => {
       playSound('success');
       showToast(`Switched account: Logged in as ${user.name} (${user.role})`, 'success');
       if (user.permissions && user.permissions.length > 0) {
-        setActiveTab(user.permissions[0]);
+        const savedTab = localStorage.getItem('tc_active_tab');
+        if (savedTab && user.permissions.includes(savedTab)) {
+          setActiveTab(savedTab);
+        } else {
+          setActiveTab(user.permissions[0]);
+        }
       }
       return user;
     }
@@ -208,13 +223,14 @@ export const AppProvider = ({ children }) => {
     authApi.me().then(({ user }) => setCurrentUser(user)).catch(() => localStorage.removeItem('tc_auth_token'));
   }, []);
 
-  // Toast Notification Helper
-  const showToast = (message, type = 'success') => {
+  // Toast Notification Helper (Max 1.0 second display for all quick popup notifications)
+  const showToast = (message, type = 'success', duration = 1000) => {
     const id = Date.now();
+    const popupDuration = Math.min(duration, 1000);
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, popupDuration);
   };
 
   // ----------------------------------------------------
@@ -569,7 +585,16 @@ export const AppProvider = ({ children }) => {
       ],
     });
     setProductStages((prev) => prev.map((item) => item.id === batchId ? savedBatch : item));
-    setProductionJobs(await ledgerApi.getProductionJobs('all'));
+
+    // Refresh both productionJobs and workPayments so the "Ready for Delivery —
+    // Employee Dues" tab reflects the stage change immediately without a page reload.
+    const [freshProdJobs, freshPayments] = await Promise.all([
+      ledgerApi.getProductionJobs('all'),
+      employeesApi.getWorkPayments(),
+    ]);
+    setProductionJobs(freshProdJobs);
+    setWorkPayments(freshPayments);
+
     if (batch.bookingId) {
       const status = nextStageName.includes('Ready') ? 'Ready for Delivery' : 'In Production';
       const savedBooking = await api.patch(`/bookings/${batch.bookingId}`, { status });
@@ -629,31 +654,45 @@ export const AppProvider = ({ children }) => {
   // ----------------------------------------------------
   const createOrderBooking = async (bookingData) => {
     const newBooking = {
-      id: generateId('BKG-2026'),
-      bookingNo: `BK-${Math.floor(100 + Math.random() * 900)}`,
+      id: bookingData.id || generateId('BKG-2026'),
+      bookingNo: bookingData.bookingNo || `BK-${Math.floor(100 + Math.random() * 900)}`,
       customerId: bookingData.customerId,
       customerName: bookingData.customerName,
       customerPhone: bookingData.customerPhone,
+      customerAddress: bookingData.customerAddress,
       garmentType: bookingData.garmentType,
       fabricDetails: bookingData.fabricDetails,
-      bookingDate: new Date().toISOString().split('T')[0],
+      bookingDate: bookingData.bookingDate || new Date().toISOString().split('T')[0],
       trialDate: bookingData.trialDate,
       deliveryDate: bookingData.deliveryDate,
       totalAmount: Number(bookingData.totalAmount) || 0,
       advancePaid: Number(bookingData.advancePaid) || 0,
       balanceDue: Math.max(0, (Number(bookingData.totalAmount) || 0) - (Number(bookingData.advancePaid) || 0)),
-      status: 'Booked',
+      status: bookingData.status || 'Booked',
       assignedMaster: bookingData.assignedMaster || bookingData.assignedEmployees?.[0]?.employeeName || 'Senior Tailor',
       assignedEmployees: bookingData.assignedEmployees || [],
-      specialInstructions: bookingData.specialInstructions || '',
+      specialInstructions: bookingData.specialInstructions || bookingData.notes || '',
       measurementId: bookingData.measurementId || null,
+      currentStage: bookingData.currentStage || 'Cutting stage',
+      workTypes: bookingData.workTypes || [],
+      specs: bookingData.specs || null,
+      orderType: bookingData.orderType || 'PRODUCT_BOOKING',
     };
 
     const savedBooking = await bookingsApi.create(newBooking);
     setOrderBookings((prev) => [savedBooking, ...prev]);
-    setLedgerEntries(await ledgerApi.getAll());
+    const [freshLedger, freshStages, freshJobs, freshMasterJobs] = await Promise.all([
+      ledgerApi.getAll(),
+      ledgerApi.getStages(),
+      ledgerApi.getProductionJobs('all'),
+      bookingsApi.getMasterJobs(),
+    ]);
+    setLedgerEntries(freshLedger);
+    setProductStages(freshStages);
+    setProductionJobs(freshJobs);
+    setAssignedJobs(freshMasterJobs);
 
-    showToast(`Order Booking #${newBooking.bookingNo} created with advance!`, 'success');
+    showToast(`Order Booking #${savedBooking.bookingNo || newBooking.bookingNo} created with advance!`, 'success');
     return savedBooking;
   };
 

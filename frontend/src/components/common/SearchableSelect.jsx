@@ -19,7 +19,10 @@ export const SearchableSelect = ({
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
-      if (!containerRef.current?.contains(event.target)) setIsOpen(false);
+      if (!containerRef.current?.contains(event.target)) {
+        setIsOpen(false);
+        setQuery('');
+      }
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
@@ -47,7 +50,9 @@ export const SearchableSelect = ({
 
   const handleAddNew = () => {
     setIsOpen(false);
-    onAddNew(query.trim() || selectedLabel);
+    if (onAddNew) {
+      onAddNew(query.trim() || selectedLabel);
+    }
   };
 
   return (
@@ -98,14 +103,16 @@ export const SearchableSelect = ({
               <div className="searchable-select-empty">No matching results</div>
             )}
           </div>
-          <button
-            type="button"
-            className="searchable-select-add"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={handleAddNew}
-          >
-            <UserPlus size={14} /> {addNewLabel}
-          </button>
+          {onAddNew && (
+            <button
+              type="button"
+              className="searchable-select-add"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handleAddNew}
+            >
+              <UserPlus size={14} /> {addNewLabel}
+            </button>
+          )}
         </div>
       )}
     </div>

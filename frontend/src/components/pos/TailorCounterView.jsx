@@ -37,48 +37,132 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
     showToast
   } = useApp();
 
+  // Load draft POS billing form state from localStorage
+  const loadDraft = () => {
+    try {
+      const saved = localStorage.getItem('tc_pos_billing_draft');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items)) {
+          parsed.items = parsed.items.filter(
+            (i) => i.name && i.name !== 'Selected Fabric/Garment' && i.name !== 'Custom Stitching Service'
+          );
+        }
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to parse tc_pos_billing_draft', e);
+    }
+    return null;
+  };
+  const draftData = loadDraft();
+
   // Service Mode State ('custom_dress' or 'raw_material')
-  const [serviceMode, setServiceMode] = useState('custom_dress');
+  const [serviceMode, setServiceMode] = useState(() => draftData?.serviceMode || 'custom_dress');
   // Raw Material Sub-Mode ('instant' for In-Stock Sale or 'booking' for Out-of-Stock Fabric Pre-Order)
-  const [rawMaterialSaleType, setRawMaterialSaleType] = useState('instant');
+  const [rawMaterialSaleType, setRawMaterialSaleType] = useState(() => draftData?.rawMaterialSaleType || 'instant');
 
   // Mobile Tab State ('bill' or 'sizing')
   const [mobileTab, setMobileTab] = useState('bill');
 
   // Customer & Header Info
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [billNo, setBillNo] = useState(() => `68${Math.floor(Math.random() * 90 + 10)}`);
-  const [billDate, setBillDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [trialDate, setTrialDate] = useState(() => new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0]);
-  const [deliveryDate, setDeliveryDate] = useState(() => new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(() => draftData?.selectedCustomerId || '');
+  const [customerName, setCustomerName] = useState(() => draftData?.customerName || '');
+  const [customerPhone, setCustomerPhone] = useState(() => draftData?.customerPhone || '');
+  const [customerAddress, setCustomerAddress] = useState(() => draftData?.customerAddress || '');
+  const [billNo, setBillNo] = useState(() => draftData?.billNo || `68${Math.floor(Math.random() * 90 + 10)}`);
+  const [billDate, setBillDate] = useState(() => draftData?.billDate || new Date().toISOString().split('T')[0]);
+  const [trialDate, setTrialDate] = useState(() => draftData?.trialDate || new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0]);
+  const [deliveryDate, setDeliveryDate] = useState(() => draftData?.deliveryDate || new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]);
 
   // 3 Mandatory Core Jobs (Cutting, Stitching, Hemming) State
-  const [coreJobs, setCoreJobs] = useState({
+  const [coreJobs, setCoreJobs] = useState(() => draftData?.coreJobs || {
     cutting: { assignedEmployee: 'Suresh Kumar Sharma (Cutter)', incentive: 50 },
     stitching: { assignedEmployee: 'Master Harun Rasheed (Tailor)', incentive: 150 },
     hemming: { assignedEmployee: 'Fatima Zahra (Finisher)', incentive: 30 }
   });
 
+  // Single Employee Assignment Mode State for 3 Core Jobs
+  const [isSingleEmployeeMode, setIsSingleEmployeeMode] = useState(() => draftData?.isSingleEmployeeMode || false);
+  const [singleEmployeeName, setSingleEmployeeName] = useState(() => draftData?.singleEmployeeName || '');
+  const [singleEmployeeIncentive, setSingleEmployeeIncentive] = useState(() => draftData?.singleEmployeeIncentive !== undefined ? draftData.singleEmployeeIncentive : 230);
+  const [previousCoreJobs, setPreviousCoreJobs] = useState(() => draftData?.previousCoreJobs || null);
+
+  const applySingleEmployeeToCoreJobs = (empName, totalInc) => {
+    const incVal = Number(totalInc) || 0;
+    const cutInc = Math.round(incVal * 0.2);
+    const stitchInc = Math.round(incVal * 0.65);
+    const hemInc = Math.max(0, incVal - cutInc - stitchInc);
+
+    setCoreJobs({
+      cutting: { assignedEmployee: empName, incentive: cutInc },
+      stitching: { assignedEmployee: empName, incentive: stitchInc },
+      hemming: { assignedEmployee: empName, incentive: hemInc }
+    });
+  };
+
+  const handleToggleSingleEmployeeMode = (enable) => {
+    if (enable) {
+      setPreviousCoreJobs(coreJobs);
+      setIsSingleEmployeeMode(true);
+      if (singleEmployeeName) {
+        applySingleEmployeeToCoreJobs(singleEmployeeName, singleEmployeeIncentive);
+      }
+    } else {
+      if (previousCoreJobs) {
+        setCoreJobs(previousCoreJobs);
+      }
+      setIsSingleEmployeeMode(false);
+    }
+  };
+
+  const handleSingleEmployeeChange = (empName) => {
+    setSingleEmployeeName(empName);
+    if (empName) {
+      applySingleEmployeeToCoreJobs(empName, singleEmployeeIncentive);
+    }
+  };
+
+  const handleSingleIncentiveChange = (val) => {
+    const num = Number(val) || 0;
+    setSingleEmployeeIncentive(num);
+    if (singleEmployeeName) {
+      applySingleEmployeeToCoreJobs(singleEmployeeName, num);
+    }
+  };
+
   // Toggle to show/hide extra work assignment & incentive details
   const [showWorkAssignmentDetails, setShowWorkAssignmentDetails] = useState(false);
 
-  // Extra Tailoring Work Assignment Details & Incentives
-  const [workDetails, setWorkDetails] = useState({
-    Ari: { assignedEmployee: 'Farooq Ahmed (Craftsman)', incentive: 40 },
-    Salma: { assignedEmployee: '', incentive: 35 },
-    Chumki: { assignedEmployee: '', incentive: 30 },
-    Gujrati: { assignedEmployee: '', incentive: 45 },
-    Ripu: { assignedEmployee: '', incentive: 25 },
-    'P. Ko': { assignedEmployee: 'Rohan Verma (Finisher)', incentive: 30 },
-    Falls: { assignedEmployee: '', incentive: 20 },
-    Polish: { assignedEmployee: '', incentive: 25 },
-    Fabrick: { assignedEmployee: '', incentive: 30 },
-    Khatha: { assignedEmployee: '', incentive: 50 },
-    Embrodory: { assignedEmployee: '', incentive: 60 },
-    Dry: { assignedEmployee: '', incentive: 20 }
+  // Extra Tailoring Work Assignment Details, Default Prices & Incentives
+  const DEFAULT_WORK_PRICES = {
+    Ari: 150,
+    Salma: 120,
+    Chumki: 100,
+    Gujrati: 160,
+    Ripu: 80,
+    'P. Ko': 90,
+    Falls: 70,
+    Polish: 80,
+    Fabrick: 100,
+    Khatha: 180,
+    Embrodory: 250,
+    Dry: 80
+  };
+
+  const [workDetails, setWorkDetails] = useState(() => draftData?.workDetails || {
+    Ari: { assignedEmployee: 'Farooq Ahmed (Craftsman)', incentive: 40, price: 150 },
+    Salma: { assignedEmployee: '', incentive: 35, price: 120 },
+    Chumki: { assignedEmployee: '', incentive: 30, price: 100 },
+    Gujrati: { assignedEmployee: '', incentive: 45, price: 160 },
+    Ripu: { assignedEmployee: '', incentive: 25, price: 80 },
+    'P. Ko': { assignedEmployee: 'Rohan Verma (Finisher)', incentive: 30, price: 90 },
+    Falls: { assignedEmployee: '', incentive: 20, price: 70 },
+    Polish: { assignedEmployee: '', incentive: 25, price: 80 },
+    Fabrick: { assignedEmployee: '', incentive: 30, price: 100 },
+    Khatha: { assignedEmployee: '', incentive: 50, price: 180 },
+    Embrodory: { assignedEmployee: '', incentive: 60, price: 250 },
+    Dry: { assignedEmployee: '', incentive: 20, price: 80 }
   });
 
   // Available Staff List for Job & Work Assignments
@@ -93,7 +177,7 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
       ];
 
   // Sizing / Measurement Specs
-  const [sizing, setSizing] = useState({
+  const [sizing, setSizing] = useState(() => draftData?.sizing || {
     length: '',
     hbl: '',
     chest: '',
@@ -117,26 +201,165 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
   });
 
   // Alteration / Fixing Form State
-  const [alterationDetails, setAlterationDetails] = useState({
-    source: 'outside',
+  const [alterationDetails, setAlterationDetails] = useState(() => draftData?.alterationDetails || {
+    source: 'shop',
     garmentType: '',
     description: ''
   });
 
+  // Options list for Alteration Product Search dropdown
+  const alterationProductOptions = React.useMemo(() => {
+    const defaults = [
+      'Dress Fitting & Alteration',
+      'Suit / Blazer Alteration',
+      'Pant / Trouser Alteration',
+      'Shirt Alteration',
+      'Kurta / Pajama Alteration',
+      'Lehenga / Choli Alteration',
+      'Blouse Alteration',
+      'Gown / Anarkali Alteration',
+      'Sherwani Alteration',
+      'Saree Fall & Pico',
+      'Zip / Runner Replacement',
+      'Waist / Hem Adjustment'
+    ];
+    const dbProductNames = (products || []).map((p) => p.name).filter(Boolean);
+    const combined = Array.from(new Set([...defaults, ...dbProductNames]));
+    return combined.map((name) => ({ value: name, label: name }));
+  }, [products]);
+
+  const handleAlterationProductChange = (name) => {
+    setAlterationDetails((prev) => ({ ...prev, garmentType: name }));
+    if (serviceMode === 'alteration') {
+      const matchedProd = (products || []).find((p) => p.name && p.name.toLowerCase() === (name || '').toLowerCase());
+      setItems((prevItems) => {
+        if (prevItems.length === 0) {
+          return [{
+            name: name || 'Dress Fitting & Alteration',
+            qty: 1,
+            rate: matchedProd?.price ? Number(matchedProd.price) : 150,
+            total: matchedProd?.price ? Number(matchedProd.price) : 150
+          }];
+        }
+        const copy = [...prevItems];
+        const mainIdx = copy.findIndex((i) => !i.isOtherJobs);
+        if (mainIdx !== -1) {
+          const currentRate = copy[mainIdx].rate;
+          const newRate = matchedProd?.price ? Number(matchedProd.price) : (currentRate || 150);
+          const qty = Number(copy[mainIdx].qty) || 1;
+          copy[mainIdx] = {
+            ...copy[mainIdx],
+            name: name || 'Dress Fitting & Alteration',
+            rate: newRate,
+            total: qty * newRate
+          };
+        } else {
+          copy.unshift({
+            name: name || 'Dress Fitting & Alteration',
+            qty: 1,
+            rate: matchedProd?.price ? Number(matchedProd.price) : 150,
+            total: matchedProd?.price ? Number(matchedProd.price) : 150
+          });
+        }
+        return copy;
+      });
+    }
+  };
+
   // Selected Work Types Checkboxes
-  const [selectedWorks, setSelectedWorks] = useState([]);
+  const [selectedWorks, setSelectedWorks] = useState(() => draftData?.selectedWorks || []);
   const WORK_TYPES = [
     'Ari', 'Salma', 'Chumki', 'Gujrati', 'Ripu', 'P. Ko',
     'Falls', 'Polish', 'Fabrick', 'Khatha', 'Embrodory', 'Dry'
   ];
 
   // Bill Line Items Grid
-  const [items, setItems] = useState([
-    { name: 'Selected Fabric/Garment', qty: 1, rate: 0, total: 0 },
-    { name: 'Custom Stitching Service', qty: 1, rate: 0, total: 0 }
+  const [items, setItems] = useState(() => draftData?.items || []);
+  const [makingCharge, setMakingCharge] = useState(() => draftData?.makingCharge !== undefined ? draftData.makingCharge : 0);
+  const [advancePaid, setAdvancePaid] = useState(() => draftData?.advancePaid !== undefined ? draftData.advancePaid : 0);
+
+  // Cleanup legacy placeholder items from current state on mount
+  useEffect(() => {
+    setItems((prev) =>
+      prev.filter(
+        (i) => i.name && i.name !== 'Selected Fabric/Garment' && i.name !== 'Custom Stitching Service'
+      )
+    );
+  }, []);
+
+  // Auto-save form draft to localStorage
+  useEffect(() => {
+    const draftPayload = {
+      serviceMode,
+      rawMaterialSaleType,
+      selectedCustomerId,
+      customerName,
+      customerPhone,
+      customerAddress,
+      billNo,
+      billDate,
+      trialDate,
+      deliveryDate,
+      coreJobs,
+      isSingleEmployeeMode,
+      singleEmployeeName,
+      singleEmployeeIncentive,
+      previousCoreJobs,
+      workDetails,
+      sizing,
+      alterationDetails,
+      selectedWorks,
+      items,
+      makingCharge,
+      advancePaid
+    };
+    localStorage.setItem('tc_pos_billing_draft', JSON.stringify(draftPayload));
+  }, [
+    serviceMode,
+    rawMaterialSaleType,
+    selectedCustomerId,
+    customerName,
+    customerPhone,
+    customerAddress,
+    billNo,
+    billDate,
+    trialDate,
+    deliveryDate,
+    coreJobs,
+    isSingleEmployeeMode,
+    singleEmployeeName,
+    singleEmployeeIncentive,
+    previousCoreJobs,
+    workDetails,
+    sizing,
+    alterationDetails,
+    selectedWorks,
+    items,
+    makingCharge,
+    advancePaid
   ]);
-  const [makingCharge, setMakingCharge] = useState(500);
-  const [advancePaid, setAdvancePaid] = useState(200);
+
+  // Warn user before accidental page reload/unload when form has filled data
+  useEffect(() => {
+    const isDirty = Boolean(
+      customerName.trim() ||
+      customerPhone.trim() ||
+      selectedWorks.length > 0 ||
+      items.some((i) => (Number(i.rate) || 0) > 0 || (i.name && i.name !== 'Selected Fabric/Garment' && i.name !== 'Custom Stitching Service')) ||
+      Object.values(sizing).some((v) => v !== '')
+    );
+
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = 'You have filled values in the bill form. Are you sure you want to refresh?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [customerName, customerPhone, selectedWorks, items, sizing]);
 
   // Quick Fabric / Product Pickers by Service Mode (Default 1 Meter minimum)
   const QUICK_DRESS_SERVICES = [
@@ -180,10 +403,12 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
 
   // Helper to mark order as Delivered
   const handleMarkDelivered = (order) => {
-    order.currentStage = 'Delivered';
-    order.stage = 'Delivered';
-    order.status = 'Delivered';
-    showToast(`Order #${order.bookingNo || order.invoiceNo || order.id} marked as Delivered`, 'success');
+    if (window.confirm(`Are you sure you want to mark order #${order.bookingNo || order.invoiceNo || order.id} as DELIVERED?`)) {
+      order.currentStage = 'Delivered';
+      order.stage = 'Delivered';
+      order.status = 'Delivered';
+      showToast(`Order #${order.bookingNo || order.invoiceNo || order.id} marked as Delivered`, 'success');
+    }
   };
 
   // Modals & Receipts
@@ -214,7 +439,12 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
   }, [selectedCustomerId, customers, measurements]);
 
   const handleSizingChange = (field, val) => {
-    setSizing((prev) => ({ ...prev, [field]: val }));
+    let cleaned = val.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      cleaned = parts[0] + '.' + parts.slice(1).join('');
+    }
+    setSizing((prev) => ({ ...prev, [field]: cleaned }));
   };
 
   const handleSaveMeasurements = async () => {
@@ -251,22 +481,71 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
   const handleItemChange = (index, field, value) => {
     setItems((prev) => {
       const updated = [...prev];
-      const qty = field === 'qty' ? Number(value) || 0 : updated[index].qty;
-      const rate = field === 'rate' ? Number(value) || 0 : updated[index].rate;
+      let cleanVal = value;
+      if (typeof value === 'string' && (field === 'rate' || field === 'qty')) {
+        cleanVal = value.replace(/^0+(?=\d)/, '');
+      }
+      const qty = field === 'qty' ? Number(cleanVal) || 0 : Number(updated[index].qty) || 0;
+      const rate = field === 'rate' ? Number(cleanVal) || 0 : Number(updated[index].rate) || 0;
       const total = qty * rate;
 
       updated[index] = {
         ...updated[index],
-        [field]: value,
+        [field]: cleanVal,
         total: field === 'qty' || field === 'rate' ? total : updated[index].total
       };
       return updated;
     });
+
+    if (serviceMode === 'alteration' && field === 'name' && index === 0) {
+      setAlterationDetails((prev) => ({ ...prev, garmentType: value }));
+    }
   };
 
   const handleRemoveItem = (index) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // Auto-sync selected extra finishing jobs into bill items as "Other Jobs"
+  useEffect(() => {
+    if (serviceMode === 'raw_material') return;
+
+    const extraWorkTotal = selectedWorks.reduce((sum, w) => {
+      const p = workDetails[w]?.price !== undefined ? Number(workDetails[w].price) : (DEFAULT_WORK_PRICES[w] || 0);
+      return sum + (isNaN(p) ? 0 : p);
+    }, 0);
+
+    setItems((prevItems) => {
+      const existingIdx = prevItems.findIndex(
+        (i) => i.isOtherJobs || (i.name && i.name.startsWith('Other Jobs'))
+      );
+
+      if (selectedWorks.length === 0 || extraWorkTotal === 0) {
+        if (existingIdx !== -1) {
+          return prevItems.filter((_, idx) => idx !== existingIdx);
+        }
+        return prevItems;
+      }
+
+      const itemTitle = `Other Jobs (${selectedWorks.join(', ')})`;
+      const updatedLine = {
+        name: itemTitle,
+        qty: 1,
+        rate: extraWorkTotal,
+        total: extraWorkTotal,
+        isOtherJobs: true
+      };
+
+      if (existingIdx !== -1) {
+        const copy = [...prevItems];
+        copy[existingIdx] = updatedLine;
+        return copy;
+      } else {
+        return [...prevItems, updatedLine];
+      }
+    });
+  }, [selectedWorks, workDetails, serviceMode]);
+
   // Calculations
   const itemsSubtotal = items.reduce((sum, item) => sum + (Number(item.total) || (Number(item.qty || 1) * Number(item.rate || 0)) || 0), 0);
   const totalAmount = itemsSubtotal + Number(makingCharge || 0);
@@ -275,14 +554,21 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
 
   // Submit Order & Print Bill
   const handleRecordPayment = async () => {
-    if (!customerName) {
+    if (!customerName || !customerName.trim()) {
       showToast('Please provide Customer Name before creating bill.', 'danger');
+      return;
+    }
+
+    const validItems = items.filter((i) => i.name && i.name.trim() !== '');
+    if (validItems.length === 0 && selectedWorks.length === 0 && Number(makingCharge || 0) === 0 && !alterationDetails.garmentType) {
+      showToast('Please add at least one product or service item to the bill before generating.', 'danger');
       return;
     }
 
     const isRawMaterial = serviceMode === 'raw_material';
     const isRawMaterialInstant = isRawMaterial && rawMaterialSaleType === 'instant';
     const isRawMaterialBooking = isRawMaterial && rawMaterialSaleType === 'booking';
+    const isAlteration = serviceMode === 'alteration';
     const saleTypeVal = isRawMaterial ? 'raw_material' : 'finished_product';
 
     // Compile Employee Assignments (3 Core Mandatory Jobs + Selected Work Types)
@@ -411,6 +697,7 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
 
     setReceiptOrder(orderData);
     setIsReceiptOpen(true);
+    localStorage.removeItem('tc_pos_billing_draft');
     showToast(`${isRawMaterialBooking ? 'Fabric Pre-Order' : (isRawMaterialInstant ? 'Fabric Instant Sale' : 'Custom Dress Bill')} #${billNo} recorded successfully!`, 'success');
   };
   const finishingWorksComponent = (
@@ -434,40 +721,66 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
           <div key={colIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
             {columnItems.map((work) => {
               const isChecked = selectedWorks.includes(work);
+              const workPrice = workDetails[work]?.price !== undefined ? workDetails[work].price : (DEFAULT_WORK_PRICES[work] || 100);
               return (
                 <div key={work} style={{ background: isChecked ? '#f0f9ff' : '#f8fafc', padding: '6px 8px', borderRadius: '6px', border: isChecked ? '1px solid #93c5fd' : '1px solid #cbd5e1', minWidth: 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: isChecked ? '#1e3a8a' : '#334155' }}>
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedWorks([...selectedWorks, work]);
-                          if (!showWorkAssignmentDetails) {
-                            const globalTask = products.find(p => p.category === 'Finishing Task' && p.name === work);
-                            if (globalTask) {
-                              setWorkDetails(prev => ({
-                                ...prev,
-                                [work]: {
-                                  assignedEmployee: globalTask.assignedEmployee && globalTask.assignedEmployee !== 'Not Assigned' ? globalTask.assignedEmployee : '',
-                                  incentive: globalTask.baseIncentive || 0
-                                }
-                              }));
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: isChecked ? '#1e3a8a' : '#334155', flex: 1, minWidth: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedWorks([...selectedWorks, work]);
+                            if (!showWorkAssignmentDetails) {
+                              const globalTask = products.find(p => p.category === 'Finishing Task' && p.name === work);
+                              if (globalTask) {
+                                setWorkDetails(prev => ({
+                                  ...prev,
+                                  [work]: {
+                                    ...(prev[work] || {}),
+                                    assignedEmployee: globalTask.assignedEmployee && globalTask.assignedEmployee !== 'Not Assigned' ? globalTask.assignedEmployee : (prev[work]?.assignedEmployee || ''),
+                                    incentive: globalTask.baseIncentive || (prev[work]?.incentive || 30),
+                                    price: prev[work]?.price !== undefined ? prev[work].price : (DEFAULT_WORK_PRICES[work] || 100)
+                                  }
+                                }));
+                              }
                             }
+                          } else {
+                            setSelectedWorks(selectedWorks.filter((w) => w !== work));
                           }
-                        } else {
-                          setSelectedWorks(selectedWorks.filter((w) => w !== work));
-                          setWorkDetails(prev => {
-                            const next = { ...prev };
-                            delete next[work];
-                            return next;
-                          });
-                        }
-                      }}
-                      style={{ accentColor: '#1e3a8a' }}
-                    />
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work}</span>
-                  </label>
+                        }}
+                        style={{ accentColor: '#1e3a8a' }}
+                      />
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work}</span>
+                    </label>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }} title="Extra Work Price charged to customer">
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>₹</span>
+                      <input
+                        type="number"
+                        value={workPrice}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setWorkDetails(prev => ({
+                            ...prev,
+                            [work]: { ...(prev[work] || {}), price: val }
+                          }));
+                        }}
+                        style={{
+                          width: '52px',
+                          padding: '2px 4px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          border: isChecked ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                          fontWeight: 700,
+                          textAlign: 'right',
+                          background: isChecked ? '#ffffff' : '#f1f5f9',
+                          color: isChecked ? '#1e3a8a' : '#475569'
+                        }}
+                      />
+                    </div>
+                  </div>
 
                   {isChecked && showWorkAssignmentDetails && (
                     <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -550,15 +863,17 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
           <button
             className="btn"
             onClick={() => {
+              localStorage.removeItem('tc_pos_billing_draft');
               setBillNo(`68${Math.floor(Math.random() * 90 + 10)}`);
+              setSelectedCustomerId('');
               setCustomerName('');
               setCustomerPhone('');
-              setItems(serviceMode === 'raw_material' ? [
-                { name: 'Cotton Fabric Reel (Meters)', qty: 1, rate: 120, total: 120 }
-              ] : [
-                { name: 'Selected Fabric/Garment', qty: 1, rate: 0, total: 0 },
-                { name: 'Custom Stitching Service', qty: 1, rate: 0, total: 0 }
-              ]);
+              setCustomerAddress('');
+              setIsSingleEmployeeMode(false);
+              setSingleEmployeeName('');
+              setSingleEmployeeIncentive(230);
+              setPreviousCoreJobs(null);
+              setItems([]);
               showToast('Created new blank bill', 'info');
             }}
             style={{ background: '#ffffff', color: '#1e3a8a', fontWeight: 700, fontSize: '0.85rem' }}
@@ -596,8 +911,8 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
       >
         <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span>Counter Service Mode:</span>
-          <span style={{ fontSize: '0.75rem', background: serviceMode === 'custom_dress' ? '#e0f2fe' : (serviceMode === 'raw_material' ? '#d1fae5' : '#f3e8ff'), color: serviceMode === 'custom_dress' ? '#0369a1' : (serviceMode === 'raw_material' ? '#047857' : '#7e22ce'), padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-            {serviceMode === 'custom_dress' ? '👗 Mode 1: Custom Dress Stitching' : (serviceMode === 'raw_material' ? '✂️ Mode 2: Raw Material Sales (By Meter)' : '🛍️ Mode 3: Ready-Made Garments (With Size)')}
+          <span style={{ fontSize: '0.75rem', background: serviceMode === 'alteration' ? '#ffedd5' : (serviceMode === 'custom_dress' ? '#e0f2fe' : (serviceMode === 'raw_material' ? '#d1fae5' : '#f3e8ff')), color: serviceMode === 'alteration' ? '#c2410c' : (serviceMode === 'custom_dress' ? '#0369a1' : (serviceMode === 'raw_material' ? '#047857' : '#7e22ce')), padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+            {serviceMode === 'alteration' ? '🪡 Mode 1: Alteration & Fixing' : (serviceMode === 'custom_dress' ? '👗 Mode 2: Custom Dress Stitching' : (serviceMode === 'raw_material' ? '✂️ Mode 3: Raw Material Sales (By Meter)' : '🛍️ Mode 4: Ready-Made Garments (With Size)'))}
           </span>
         </div>
 
@@ -605,13 +920,35 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
           <button
             type="button"
             onClick={() => {
+              setServiceMode('alteration');
+              setMakingCharge(0);
+              setAdvancePaid(0);
+            }}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: serviceMode === 'alteration' ? '2px solid #ea580c' : '1px solid #cbd5e1',
+              background: serviceMode === 'alteration' ? '#ea580c' : '#f8fafc',
+              color: serviceMode === 'alteration' ? '#ffffff' : '#334155',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justify: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>🪡 Alteration & Fixing</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setServiceMode('custom_dress');
-              setMakingCharge(500);
-              setAdvancePaid(200);
-              setItems([
-                { name: 'Selected Fabric/Garment', qty: 1, rate: 0, total: 0 },
-                { name: 'Custom Stitching Service', qty: 1, rate: 0, total: 0 }
-              ]);
+              setMakingCharge(0);
+              setAdvancePaid(0);
             }}
             style={{
               flex: 1,
@@ -638,9 +975,6 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
               setServiceMode('raw_material');
               setMakingCharge(0);
               setAdvancePaid(0);
-              setItems([
-                { name: 'Cotton Fabric Reel (Meters)', qty: 2.5, rate: 120, total: 300 }
-              ]);
             }}
             style={{
               flex: 1,
@@ -667,9 +1001,6 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
               setServiceMode('readymade');
               setMakingCharge(0);
               setAdvancePaid(0);
-              setItems([
-                { name: 'Readymade Salwar Suit Set (Size L)', qty: 1, rate: 850, total: 850 }
-              ]);
             }}
             style={{
               flex: 1,
@@ -688,35 +1019,6 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
             }}
           >
             <span>🛍️ Ready-Made (With Size)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setServiceMode('alteration');
-              setMakingCharge(0);
-              setAdvancePaid(0);
-              setItems([
-                { name: 'Dress Fitting & Alteration', qty: 1, rate: 150, total: 150 }
-              ]);
-            }}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: serviceMode === 'alteration' ? '2px solid #ea580c' : '1px solid #cbd5e1',
-              background: serviceMode === 'alteration' ? '#ea580c' : '#f8fafc',
-              color: serviceMode === 'alteration' ? '#ffffff' : '#334155',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justify: 'center',
-              gap: '6px'
-            }}
-          >
-            <span>🪡 Alteration & Fixing</span>
           </button>
         </div>
 
@@ -833,7 +1135,7 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                 }}
               >
                 <Scissors size={18} />
-                <span>Sizing / Measurements</span>
+                <span>Sizing / Measurements (Inches)</span>
               </div>
 
               {/* Sizing Grid 2-columns */}
@@ -859,7 +1161,8 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                     <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>{item.label}</label>
                     <input
                       type="text"
-                      placeholder="Inches"
+                      inputMode="decimal"
+                      placeholder="Numbers only"
                       value={sizing[item.key] || ''}
                       onChange={(e) => handleSizingChange(item.key, e.target.value)}
                       style={{
@@ -895,7 +1198,8 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                       <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>{item.label}</label>
                       <input
                         type="text"
-                        placeholder="Inches"
+                        inputMode="decimal"
+                        placeholder="Numbers only"
                         value={sizing[item.key] || ''}
                         onChange={(e) => handleSizingChange(item.key, e.target.value)}
                         style={{
@@ -967,12 +1271,11 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
 
                 <div>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px', display: 'block' }}>Alteration Product Name</label>
-                  <textarea
+                  <SearchableSelect
                     value={alterationDetails.garmentType}
-                    onChange={(e) => setAlterationDetails(p => ({...p, garmentType: e.target.value}))}
-                    placeholder="Enter alteration product name..."
-                    rows={2}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px', resize: 'vertical' }}
+                    onChange={handleAlterationProductChange}
+                    options={alterationProductOptions}
+                    placeholder="Search or enter alteration product name..."
                   />
                 </div>
 
@@ -982,14 +1285,128 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                     value={alterationDetails.description}
                     onChange={(e) => setAlterationDetails(p => ({...p, description: e.target.value}))}
                     placeholder="E.g., Zip replacement, hem reduction by 2 inches, side fitting..."
-                    rows={4}
+                    rows={3}
                     style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px', resize: 'vertical' }}
                   />
                 </div>
               </div>
 
-              {/* Tailoring & Finishing Work Included (also shown for Alteration) */}
-              {finishingWorksComponent}
+              {/* Sizing & Measurements for Alterations */}
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  style={{
+                    background: '#ea580c',
+                    color: '#ffffff',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Scissors size={15} />
+                  <span>Sizing / Alteration Specs (Inches)</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { label: 'Length', key: 'length' },
+                    { label: 'Chest', key: 'chest' },
+                    { label: 'Waist', key: 'waist' },
+                    { label: 'Shoulder', key: 'shoulder' },
+                    { label: 'Sleeve', key: 'sleeve' },
+                    { label: 'Muhuri', key: 'muhuri' },
+                    { label: 'F. Neck', key: 'fNeck' },
+                    { label: 'B. Neck', key: 'bNeck' },
+                    { label: 'Thigh', key: 'thigh' },
+                    { label: 'Armpit', key: 'armpit' },
+                    { label: 'Hai', key: 'hai' },
+                    { label: 'Hip', key: 'hip' },
+                    { label: 'Lining', key: 'lining' },
+                    { label: 'H.B.L.', key: 'hbl' },
+                    { label: 'B. P.', key: 'bp' }
+                  ].map((item) => (
+                    <div key={item.key} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>{item.label}</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Numbers only"
+                        value={sizing[item.key] || ''}
+                        onChange={(e) => handleSizingChange(item.key, e.target.value)}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          padding: '6px 8px',
+                          fontSize: '13px',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          fontWeight: 600
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#ea580c', marginBottom: '6px' }}>
+                    Lower Body / Skirt Specs
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    {[
+                      { label: 'Demu', key: 'demu' },
+                      { label: 'Knee', key: 'knee' },
+                      { label: 'Gher', key: 'gher' },
+                      { label: 'Side', key: 'side' },
+                      { label: 'Secom', key: 'secom' }
+                    ].map((item) => (
+                      <div key={item.key} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>{item.label}</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="Numbers only"
+                          value={sizing[item.key] || ''}
+                          onChange={(e) => handleSizingChange(item.key, e.target.value)}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '6px 8px',
+                            fontSize: '13px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            fontWeight: 600
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleSaveMeasurements}
+                  style={{
+                    background: '#ea580c',
+                    color: '#ffffff',
+                    padding: '10px',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    marginTop: '4px'
+                  }}
+                >
+                  <Save size={16} style={{ marginRight: '6px', display: 'inline' }} />
+                  Save Measurements
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -1166,10 +1583,68 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
           {/* Mandatory 3 Core Jobs Section (Cutting, Stitching, Hemming) */}
           {serviceMode === 'custom_dress' && (
             <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Scissors size={16} />
-                <span>Mandatory Core Job Assignments & Incentives (Cutting, Stitching, Hemming)</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Scissors size={16} />
+                  <span>Mandatory Core Job Assignments & Incentives (Cutting, Stitching, Hemming)</span>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#2563eb', cursor: 'pointer', background: '#eff6ff', padding: '4px 8px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                  <input
+                    type="checkbox"
+                    checked={isSingleEmployeeMode}
+                    onChange={(e) => handleToggleSingleEmployeeMode(e.target.checked)}
+                    style={{ accentColor: '#2563eb' }}
+                  />
+                  Assign Single Employee for All 3 Core Jobs
+                </label>
               </div>
+
+              {/* Single Employee Quick Assignment Banner */}
+              {isSingleEmployeeMode && (
+                <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', padding: '10px 12px', borderRadius: '6px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 2, minWidth: '200px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#1e3a8a', marginBottom: '2px', display: 'block' }}>
+                        Single Master Staff (All 3 Jobs):
+                      </label>
+                      <select
+                        value={singleEmployeeName}
+                        onChange={(e) => handleSingleEmployeeChange(e.target.value)}
+                        style={{ width: '100%', padding: '5px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '4px', border: '1px solid #2563eb', background: '#ffffff', color: '#1e3a8a' }}
+                      >
+                        <option value="">-- Select Master Staff for All 3 Jobs --</option>
+                        {availableEmployees.map((emp) => <option key={emp} value={emp}>{emp}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: '130px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#1e3a8a', marginBottom: '2px', display: 'block' }}>
+                        Editable Total Incentive (₹):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={singleEmployeeIncentive === 0 ? '' : singleEmployeeIncentive}
+                        onChange={(e) => handleSingleIncentiveChange(e.target.value.replace(/^0+(?=\d)/, ''))}
+                        placeholder="230"
+                        style={{ width: '100%', padding: '5px 8px', fontSize: '12px', fontWeight: 800, borderRadius: '4px', border: '1px solid #2563eb', background: '#ffffff', color: '#16a34a' }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSingleEmployeeMode(false)}
+                      style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', marginTop: '16px' }}
+                      title="Undo single assignment and restore individual 3 employee settings"
+                    >
+                      ↩️ Undo Single Mode
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#1e40af', marginTop: '6px' }}>
+                    💡 <em>Note: Previous 3-employee individual assignments are preserved and will be restored if you click Undo or uncheck Single Mode.</em>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
                 {/* 1. Cutting Job */}
@@ -1178,8 +1653,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <select
                       value={coreJobs?.cutting?.assignedEmployee || ''}
+                      disabled={isSingleEmployeeMode}
                       onChange={(e) => setCoreJobs(prev => ({ ...prev, cutting: { ...(prev?.cutting || {}), assignedEmployee: e.target.value } }))}
-                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                     >
                       <option value="">-- Assign Cutter --</option>
                       {availableEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
@@ -1188,9 +1664,10 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                       <span style={{ color: '#64748b', fontWeight: 600 }}>Incentive (₹):</span>
                       <input
                         type="number"
+                        disabled={isSingleEmployeeMode}
                         value={coreJobs?.cutting?.incentive || 0}
                         onChange={(e) => setCoreJobs(prev => ({ ...prev, cutting: { ...(prev?.cutting || {}), incentive: Number(e.target.value) || 0 } }))}
-                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right' }}
+                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                       />
                     </div>
                   </div>
@@ -1202,8 +1679,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <select
                       value={coreJobs?.stitching?.assignedEmployee || ''}
+                      disabled={isSingleEmployeeMode}
                       onChange={(e) => setCoreJobs(prev => ({ ...prev, stitching: { ...(prev?.stitching || {}), assignedEmployee: e.target.value } }))}
-                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                     >
                       <option value="">-- Assign Tailor --</option>
                       {availableEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
@@ -1212,9 +1690,10 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                       <span style={{ color: '#64748b', fontWeight: 600 }}>Incentive (₹):</span>
                       <input
                         type="number"
+                        disabled={isSingleEmployeeMode}
                         value={coreJobs?.stitching?.incentive || 0}
                         onChange={(e) => setCoreJobs(prev => ({ ...prev, stitching: { ...(prev?.stitching || {}), incentive: Number(e.target.value) || 0 } }))}
-                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right' }}
+                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                       />
                     </div>
                   </div>
@@ -1226,8 +1705,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <select
                       value={coreJobs?.hemming?.assignedEmployee || ''}
+                      disabled={isSingleEmployeeMode}
                       onChange={(e) => setCoreJobs(prev => ({ ...prev, hemming: { ...(prev?.hemming || {}), assignedEmployee: e.target.value } }))}
-                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      style={{ width: '100%', padding: '4px 6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                     >
                       <option value="">-- Assign Finisher --</option>
                       {availableEmployees.map(emp => <option key={emp} value={emp}>{emp}</option>)}
@@ -1236,9 +1716,10 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                       <span style={{ color: '#64748b', fontWeight: 600 }}>Incentive (₹):</span>
                       <input
                         type="number"
+                        disabled={isSingleEmployeeMode}
                         value={coreJobs?.hemming?.incentive || 0}
                         onChange={(e) => setCoreJobs(prev => ({ ...prev, hemming: { ...(prev?.hemming || {}), incentive: Number(e.target.value) || 0 } }))}
-                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right' }}
+                        style={{ width: '70px', padding: '2px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'right', opacity: isSingleEmployeeMode ? 0.8 : 1 }}
                       />
                     </div>
                   </div>
@@ -1410,9 +1891,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                         <input
                           type="number"
                           min="0"
-                          value={item.rate}
-                          onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                          placeholder={serviceMode === 'raw_material' ? 'Price/m' : '0'}
+                          value={item.rate === 0 || item.rate === '0' ? '' : item.rate}
+                          onChange={(e) => handleItemChange(idx, 'rate', e.target.value.replace(/^0+(?=\d)/, ''))}
+                          placeholder="0"
                           style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '12.5px', textAlign: 'right', fontWeight: 700, outline: 'none' }}
                         />
                       </td>
@@ -1440,8 +1921,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                   <td style={{ border: '1px solid #1e3a8a', padding: '2px 4px' }}>
                     <input
                       type="number"
-                      value={makingCharge}
-                      onChange={(e) => setMakingCharge(e.target.value)}
+                      value={makingCharge === 0 || makingCharge === '0' ? '' : makingCharge}
+                      onChange={(e) => setMakingCharge(e.target.value.replace(/^0+(?=\d)/, ''))}
+                      placeholder="0"
                       style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '12.5px', textAlign: 'right', fontWeight: 700, outline: 'none' }}
                     />
                   </td>
@@ -1467,8 +1949,9 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                   <td style={{ border: '1px solid #1e3a8a', padding: '2px 4px' }}>
                     <input
                       type="number"
-                      value={advancePaid}
-                      onChange={(e) => setAdvancePaid(e.target.value)}
+                      value={advancePaid === 0 || advancePaid === '0' ? '' : advancePaid}
+                      onChange={(e) => setAdvancePaid(e.target.value.replace(/^0+(?=\d)/, ''))}
+                      placeholder="0"
                       style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '12.5px', textAlign: 'right', fontWeight: 700, color: '#16a34a', outline: 'none' }}
                     />
                   </td>
@@ -1631,10 +2114,12 @@ export const TailorCounterView = ({ onNavigateToHistory }) => {
                                 value={currentStageVal}
                                 onChange={(e) => {
                                   const selectedStage = e.target.value;
-                                  b.currentStage = selectedStage;
-                                  b.stage = selectedStage;
-                                  b.status = selectedStage;
-                                  showToast(`Order #${b.bookingNo || b.invoiceNo || b.id} status updated to "${selectedStage}"`, 'success');
+                                  if (window.confirm(`Are you sure you want to change order #${b.bookingNo || b.invoiceNo || b.id} stage to "${selectedStage}"?`)) {
+                                    b.currentStage = selectedStage;
+                                    b.stage = selectedStage;
+                                    b.status = selectedStage;
+                                    showToast(`Order #${b.bookingNo || b.invoiceNo || b.id} status updated to "${selectedStage}"`, 'success');
+                                  }
                                 }}
                                 style={{
                                   padding: '4px 6px',

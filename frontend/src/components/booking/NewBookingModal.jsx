@@ -17,8 +17,8 @@ export const NewBookingModal = ({ isOpen, onClose }) => {
   const [fabricDetails, setFabricDetails] = useState('Super 140s Merino Wool (Midnight Blue)');
   const [trialDate, setTrialDate] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [totalAmount, setTotalAmount] = useState('35000.00');
-  const [advancePaid, setAdvancePaid] = useState('15000.00');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [advancePaid, setAdvancePaid] = useState('');
   const [assignedEmployees, setAssignedEmployees] = useState([]);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState('All');

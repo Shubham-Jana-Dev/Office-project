@@ -13,6 +13,7 @@ import {
 import { STAGES_LIST } from '../../data/seedData';
 import { NewBatchModal } from './NewBatchModal';
 import { QCModal } from './QCModal';
+import { StageConfirmModal } from './StageConfirmModal';
 import { StatCard } from '../common/StatCard';
 
 const STAGE_LABELS = ['Cutting', 'Stitching', 'Hemming', 'QC', 'Ready to Deliver'];
@@ -31,6 +32,7 @@ export const StagesView = () => {
   const [filterStage, setFilterStage] = useState('All');
   const [isNewBatchOpen, setIsNewBatchOpen] = useState(false);
   const [selectedBatchForQC, setSelectedBatchForQC] = useState(null);
+  const [confirmModalState, setConfirmModalState] = useState(null);
 
   // Helper: check if a batch is an alteration
   const isAlterationBatch = (batch) => {
@@ -52,7 +54,7 @@ export const StagesView = () => {
     return idx >= 0 ? idx : 0;
   };
 
-  // Handle clicking a checkbox node – toggle check/uncheck
+  // Handle clicking a checkbox node – toggle check/uncheck with pop-up window confirmation
   const handleNodeClick = (batch, clickedIndex) => {
     const list = getActiveStageList(batch);
     const currentIdx = getStageIndex(batch, batch.currentStage);
@@ -60,29 +62,69 @@ export const StagesView = () => {
 
     if (clickedIndex <= currentIdx) {
       // UNCHECK: clicking a completed or current stage → move back to stage before it
+      let targetStageName, progressVal;
       if (clickedIndex === 0) {
-        // Can't go before stage 0, set to stage 0
         const firstStage = list[0];
-        const progressVal = Math.round((1 / list.length) * 100);
-        moveProductStageBackward(batch.id, firstStage.name, progressVal);
+        targetStageName = firstStage.name;
+        progressVal = Math.round((1 / list.length) * 100);
       } else {
-        // Move back to the stage before the clicked one
         const prevStage = list[clickedIndex - 1];
-        const progressVal = Math.round((clickedIndex / list.length) * 100);
-        moveProductStageBackward(batch.id, prevStage.name, progressVal);
+        targetStageName = prevStage.name;
+        progressVal = Math.round((clickedIndex / list.length) * 100);
       }
+
+      // Show Red-themed confirmation modal for moving backward
+      setConfirmModalState({
+        isOpen: true,
+        type: 'backward',
+        batch,
+        currentStage: batch.currentStage,
+        targetStage: targetStageName,
+        onConfirm: () => {
+          moveProductStageBackward(batch.id, targetStageName, progressVal);
+          setConfirmModalState(null);
+        }
+      });
     } else {
       // CHECK: clicking a future stage → advance to it
       const targetStage = list[clickedIndex];
       const progressVal = Math.round(((clickedIndex + 1) / list.length) * 100);
-      advanceProductStage(batch.id, targetStage.name, progressVal);
+
+      // Show Green-themed confirmation modal for stage advance
+      setConfirmModalState({
+        isOpen: true,
+        type: 'advance',
+        batch,
+        currentStage: batch.currentStage,
+        targetStage: targetStage.name,
+        onConfirm: () => {
+          advanceProductStage(batch.id, targetStage.name, progressVal);
+          setConfirmModalState(null);
+        }
+      });
     }
   };
 
-  // Mark as delivered
+  // Mark as delivered with confirmation pop-up window
   const handleDeliver = (batch) => {
-    advanceProductStage(batch.id, 'Delivered', 100);
-    if (showToast) showToast(`Order ${batch.batchNo || batch.id} marked as Delivered! 🎉`, 'success');
+    const order = orderBookings?.find(o => o.id === batch.bookingId);
+    const advancePaid = order?.advancePaid || 0;
+    const dueAmount = order?.balanceDue || 0;
+
+    setConfirmModalState({
+      isOpen: true,
+      type: 'delivery',
+      batch,
+      currentStage: batch.currentStage,
+      targetStage: 'Delivered',
+      advancePaid,
+      dueAmount,
+      onConfirm: () => {
+        advanceProductStage(batch.id, 'Delivered', 100);
+        if (showToast) showToast(`Order ${batch.batchNo || batch.id} marked as Delivered! 🎉`, 'success');
+        setConfirmModalState(null);
+      }
+    });
   };
 
   // KPI Calculations
@@ -276,7 +318,6 @@ export const StagesView = () => {
                               className="tracker-cb-input"
                               checked={isChecked}
                               disabled={isDelivered}
-
                               onChange={() => {
                                 try {
                                   handleNodeClick(batch, idx);
@@ -353,6 +394,12 @@ export const StagesView = () => {
         isOpen={Boolean(selectedBatchForQC)}
         onClose={() => setSelectedBatchForQC(null)}
         batch={selectedBatchForQC}
+      />
+      <StageConfirmModal
+        isOpen={Boolean(confirmModalState?.isOpen)}
+        onClose={() => setConfirmModalState(null)}
+        onConfirm={confirmModalState?.onConfirm}
+        modalData={confirmModalState}
       />
     </div>
   );

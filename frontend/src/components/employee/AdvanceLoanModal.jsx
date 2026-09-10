@@ -10,13 +10,14 @@ export const AdvanceLoanModal = ({ isOpen, onClose, employee }) => {
   const [activeTab, setActiveTab] = useState('grant'); // 'grant' or 'repay'
   const [loanAmount, setLoanAmount] = useState('200.00');
   const [repayAmount, setRepayAmount] = useState('100.00');
+  const [loanReason, setLoanReason] = useState('');
 
   if (!employee) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (activeTab === 'grant') {
-      grantEmployeeAdvanceLoan(employee.id, loanAmount);
+      grantEmployeeAdvanceLoan(employee.id, loanAmount, loanReason);
     } else {
       repayEmployeeAdvanceLoan(employee.id, repayAmount);
     }
@@ -73,18 +74,36 @@ export const AdvanceLoanModal = ({ isOpen, onClose, employee }) => {
         </div>
 
         {activeTab === 'grant' && (
-          <div>
-            <label className="form-label">New Advance Loan Amount (₹)</label>
-            <input
-              type="number"
-              step="100"
-              min="100"
-              className="form-input font-mono"
-              style={{ fontSize: '1.1rem', fontWeight: 'bold' }}
-              required
-              value={loanAmount}
-              onChange={(e) => setLoanAmount(e.target.value)}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label className="form-label">New Advance Loan Amount (₹)</label>
+              <input
+                type="number"
+                step="100"
+                min="100"
+                className="form-input font-mono"
+                style={{ fontSize: '1.1rem', fontWeight: 'bold' }}
+                required
+                value={loanAmount}
+                onChange={(e) => setLoanAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="form-label">Reason for Loan</label>
+              <textarea
+                className="form-input"
+                rows={3}
+                placeholder="e.g. Medical emergency, home repair, personal need…"
+                style={{
+                  resize: 'vertical',
+                  minHeight: '80px',
+                  lineHeight: '1.5',
+                  fontFamily: 'var(--font-body)',
+                }}
+                value={loanReason}
+                onChange={(e) => setLoanReason(e.target.value)}
+              />
+            </div>
           </div>
         )}
 

@@ -82,7 +82,9 @@ def create_stage():
             quantity=stage.quantity,
             agreed_amount=assignment.get('amount', assignment.get('agreedAmount', 0)),
         )
-        if stage.current_stage.lower() in {'ready for delivery', 'showroom / ready stock', 'ready'}:
+        _stage_lower_create = stage.current_stage.lower()
+        _ready_kw = {'ready to delivery stage', 'ready to deliver', 'ready for delivery', 'showroom / ready stock', 'ready'}
+        if any(kw in _stage_lower_create for kw in _ready_kw):
             job.status = 'READY_FOR_PAYMENT'
             job.ready_at = datetime.utcnow()
         db.session.add(job)
@@ -113,7 +115,11 @@ def update_stage(stage_id):
     if 'targetDate' in data: stage.target_date = data['targetDate']
     if 'bookingId' in data: stage.booking_id = data['bookingId']
 
-    if stage.current_stage.lower() in {'ready for delivery', 'showroom / ready stock', 'ready'}:
+    # Normalize to lowercase for comparison — covers all stage name variants used in the app:
+    # "Ready to Delivery stage", "Ready to Deliver", "Showroom / Ready Stock", etc.
+    _stage_lower = stage.current_stage.lower()
+    _ready_keywords = {'ready to delivery stage', 'ready to deliver', 'ready for delivery', 'showroom / ready stock', 'ready'}
+    if any(kw in _stage_lower for kw in _ready_keywords):
         ready_at = datetime.utcnow()
         for job in ProductionJob.query.filter_by(stage_id=stage.id).all():
             if job.status == 'IN_PROGRESS':
