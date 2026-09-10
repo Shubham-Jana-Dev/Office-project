@@ -11,7 +11,7 @@ from backend.app.extensions import db
 from sqlalchemy import text
 
 app = create_app()
-
+#change
 
 def check_database_connection():
     """Return False and print a friendly message when MySQL is unavailable."""
