@@ -24,13 +24,11 @@ import { NewBookingModal } from './NewBookingModal';
 import { CustomerModal } from '../common/CustomerModal';
 import { CustomerProfileModal } from '../customer/CustomerProfileModal';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { TailorCounterView } from '../pos/TailorCounterView';
 import { StatCard } from '../common/StatCard';
 import { exportTailorJobCardPDF } from '../../utils/pdfGenerator';
 
 export const BookingView = () => {
   const { orderBookings, updateBookingStatus, measurements, customers, deleteCustomer, currency } = useApp();
-  const [viewMode, setViewMode] = useState('counter'); // 'counter' or 'list'
   const [mainTab, setMainTab] = useState('bookings'); // 'bookings' or 'clients'
   const [isNewBookingOpen, setIsNewBookingOpen] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
@@ -81,36 +79,15 @@ export const BookingView = () => {
 
   return (
     <div className="view-container">
-      {/* Mode Switcher Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <button
-          className={`btn ${viewMode === 'counter' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setViewMode('counter')}
-          style={{ padding: '10px 18px', fontWeight: 700 }}
-        >
-          ⚡ Express Counter Booking & Sizing (Simple Mode)
-        </button>
-        <button
-          className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setViewMode('list')}
-          style={{ padding: '10px 18px', fontWeight: 700 }}
-        >
-          📋 Bookings Registry & Active Orders ({orderBookings.length})
-        </button>
-      </div>
-
-      {viewMode === 'counter' ? (
-        <TailorCounterView onNavigateToHistory={() => setViewMode('list')} />
-      ) : (
-        <div className="booking-list-wrapper">
-          {/* Header */}
-          <div className="responsive-header-row">
-            <div>
-              <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Order Booking & Bespoke Tailoring</h1>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Advance custom order bookings, deposit collection, trial fitting scheduling & client registry
-              </p>
-            </div>
+      <div className="booking-list-wrapper">
+        {/* Header */}
+        <div className="responsive-header-row">
+          <div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Booking History</h1>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Historical custom order bookings, deposit collection, trial fitting scheduling & client registry
+            </p>
+          </div>
             <div className="responsive-header-actions" style={{ display: 'flex', gap: '10px' }}>
               <button className="btn btn-secondary" onClick={() => setIsNewCustomerOpen(true)}>
                 <UserPlus size={16} /> + Register New Client
@@ -568,7 +545,6 @@ export const BookingView = () => {
         </div>
       )}
       </div>
-      )}
 
       {/* Modals */}
       <NewBookingModal isOpen={isNewBookingOpen} onClose={() => setIsNewBookingOpen(false)} />

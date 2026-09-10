@@ -1670,54 +1670,296 @@ export const EmployeeView = () => {
       )}
 
       {subTab === 'jobs' && (
-        <div className="card table-responsive">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title"><Scissors size={18} color="#6366F1" /> Assigned Booking Work</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Complete production tasks here. Payroll eligibility is released only after delivery and payment settlement.
-              </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* ── Assigned Booking Work ── */}
+          <div className="card table-responsive">
+            <div className="card-header">
+              <div>
+                <h3 className="card-title"><Scissors size={18} color="#6366F1" /> Assigned Booking Work</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Complete production tasks here. Incentive is released once the order is delivered and payment is settled.
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    background: 'rgba(99,102,241,0.12)',
+                    color: '#6366F1',
+                  }}
+                >
+                  {assignedJobs.length} Jobs
+                </span>
+              </div>
             </div>
-          </div>
-          {assignedJobs.length === 0 ? (
-            <p style={{ color: 'var(--text-dim)', padding: '20px' }}>No assigned booking work found.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Booking</th>
-                  <th>Employee</th>
-                  <th>Garment</th>
-                  <th>Work Status</th>
-                  <th>Incentive</th>
-                  <th>Payroll Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assignedJobs.map((job) => (
-                  <tr key={job.id}>
-                    <td><strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{job.bookingId}</strong></td>
-                    <td>{job.masterName}</td>
-                    <td>{job.garmentType}</td>
-                    <td><span className={`badge ${job.workStatus === 'COMPLETED' ? 'badge-success' : 'badge-primary'}`}>{job.workStatus}</span></td>
-                    <td>{formatCurrency(job.incentiveRate, currency)}</td>
-                    <td><span className={`badge ${job.payoutStatus === 'READY_FOR_PAYROLL' ? 'badge-success' : 'badge-warning'}`}>{job.payoutStatus}</span></td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-success btn-sm"
-                        disabled={job.workStatus === 'COMPLETED'}
-                        onClick={() => completeAssignedJob(job.id)}
-                      >
-                        <CheckCircle2 size={13} /> {job.workStatus === 'COMPLETED' ? 'Completed' : 'Mark Complete'}
-                      </button>
-                    </td>
+            {assignedJobs.length === 0 ? (
+              <p style={{ color: 'var(--text-dim)', padding: '20px' }}>No assigned booking work found.</p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Employee</th>
+                    <th>Garment</th>
+                    <th>Work Status</th>
+                    <th>Incentive</th>
+                    <th>Payroll Status</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {assignedJobs.map((job) => (
+                    <tr key={job.id}>
+                      <td><strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{job.bookingId}</strong></td>
+                      <td>{job.masterName}</td>
+                      <td>{job.garmentType}</td>
+                      <td>
+                        <span className={`badge ${job.workStatus === 'COMPLETED' ? 'badge-success' : 'badge-primary'}`}>
+                          {job.workStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#F59E0B' }}>
+                          {formatCurrency(job.incentiveRate, currency)}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            job.payoutStatus === 'READY_FOR_PAYROLL'
+                              ? 'badge-success'
+                              : job.payoutStatus === 'PAID'
+                              ? 'badge-warning'
+                              : 'badge-primary'
+                          }`}
+                        >
+                          {job.payoutStatus === 'PENDING_DELIVERY'
+                            ? '⏳ Pending Delivery'
+                            : job.payoutStatus === 'READY_FOR_PAYROLL'
+                            ? '✅ Ready for Payroll'
+                            : job.payoutStatus === 'PAID'
+                            ? '💰 Paid'
+                            : job.payoutStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-success btn-sm"
+                          disabled={job.workStatus === 'COMPLETED'}
+                          onClick={() => completeAssignedJob(job.id)}
+                        >
+                          <CheckCircle2 size={13} /> {job.workStatus === 'COMPLETED' ? 'Completed ✓' : 'Mark Complete'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* ── Ready for Delivery — Employee Dues ── */}
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Wallet size={18} color="#10B981" />
+                  Ready for Delivery — Employee Dues
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Incentive payments unlocked after garments reach "Ready to Deliver" stage. Settle to clear the dues.
+                </p>
+              </div>
+              {workPayments && workPayments.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: '2px',
+                  }}
+                >
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Pending</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 900,
+                      fontSize: '1.1rem',
+                      color: '#F59E0B',
+                    }}
+                  >
+                    {formatCurrency(
+                      workPayments.reduce((sum, j) => sum + (j.agreedAmount || 0), 0),
+                      currency
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {!workPayments || workPayments.length === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '36px 20px',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <Wallet size={40} style={{ opacity: 0.25 }} />
+                <p style={{ fontWeight: 600 }}>No unsettled incentive dues right now.</p>
+                <p style={{ fontSize: '0.82rem', textAlign: 'center' }}>
+                  Dues appear here when a garment batch reaches the <strong>"Ready to Deliver"</strong> stage in the Production Tracker.
+                </p>
+              </div>
+            ) : (
+              (() => {
+                // Group workPayments by employee for a cleaner "Settle All" UX
+                const grouped = workPayments.reduce((acc, job) => {
+                  const key = job.employeeId || job.employeeName;
+                  if (!acc[key]) acc[key] = { employeeId: job.employeeId, employeeName: job.employeeName, jobs: [] };
+                  acc[key].jobs.push(job);
+                  return acc;
+                }, {});
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 0 4px 0' }}>
+                    {Object.values(grouped).map((group) => {
+                      const groupTotal = group.jobs.reduce((sum, j) => sum + (j.agreedAmount || 0), 0);
+                      return (
+                        <div
+                          key={group.employeeName}
+                          style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {/* Employee group header */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '10px 16px',
+                              background: 'var(--bg-surface)',
+                              borderBottom: '1px solid var(--border)',
+                              flexWrap: 'wrap',
+                              gap: '8px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div
+                                style={{
+                                  width: '34px',
+                                  height: '34px',
+                                  borderRadius: '50%',
+                                  background: 'rgba(16,185,129,0.15)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '1rem',
+                                }}
+                              >
+                                {employees.find(
+                                  (e) => e.id === group.employeeId || e.name === group.employeeName
+                                )?.avatar || '👤'}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{group.employeeName}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  {group.jobs.length} job{group.jobs.length > 1 ? 's' : ''} pending
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Due</div>
+                                <div
+                                  style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 900,
+                                    fontSize: '1rem',
+                                    color: '#10B981',
+                                  }}
+                                >
+                                  {formatCurrency(groupTotal, currency)}
+                                </div>
+                              </div>
+                              <button
+                                className="btn btn-success btn-sm"
+                                style={{ display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
+                                onClick={async () => {
+                                  if (group.employeeId) {
+                                    await settleEmployeeProductionBalance(group.employeeId);
+                                  } else {
+                                    // Settle job by job if no employeeId
+                                    for (const j of group.jobs) {
+                                      await settleWorkPayment(j.id);
+                                    }
+                                  }
+                                }}
+                              >
+                                <Wallet size={13} /> Settle All ({formatCurrency(groupTotal, currency)})
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Individual job rows */}
+                          <div className="table-responsive">
+                            <table className="data-table" style={{ marginBottom: 0 }}>
+                              <thead>
+                                <tr>
+                                  <th>Project / Garment</th>
+                                  <th>Qty</th>
+                                  <th>Amount Due</th>
+                                  <th>Ready Since</th>
+                                  <th>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.jobs.map((job) => (
+                                  <tr key={job.id}>
+                                    <td>
+                                      <span style={{ fontWeight: 600 }}>{job.projectName}</span>
+                                    </td>
+                                    <td>{job.quantity}</td>
+                                    <td>
+                                      <span style={{ color: '#F59E0B', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                                        {formatCurrency(job.agreedAmount, currency)}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                      {job.readyAt || '—'}
+                                    </td>
+                                    <td>
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                                        onClick={() => settleWorkPayment(job.id)}
+                                      >
+                                        <CheckCircle2 size={12} /> Settle
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            )}
+          </div>
         </div>
       )}
 

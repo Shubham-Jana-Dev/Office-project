@@ -59,8 +59,8 @@ export const Sidebar = () => {
     },
     {
       id: 'booking',
-      label: 'Order Booking',
-      subtitle: 'Advance Bespoke Orders',
+      label: 'Booking History',
+      subtitle: 'Historical Orders & Registry',
       icon: CalendarCheck,
       badge: `${orderBookings.filter((b) => b.status === 'In Production').length} Active`,
       badgeColor: 'badge-warning',
